@@ -1,4 +1,4 @@
-// hello_FAME.c - First touch of Fabric-Attached Memory for The Machine
+// hello_fabric.c - First touch of Fabric-Attached Memory for The Machine
 // from Hewlett Packard Enterprise.  Compile this on any of the VMs created
 // by the configurator script.
 
