@@ -1,15 +1,12 @@
 ### Emulation of Fabric-Attached Memory for The Machine
 
-This repo delivers a configuration script to create virtual machine file system images directly from a Debian repo.  The VMs are then configured with IVHSHMEM temulate the Fabric-Attached Memory of The Machine from Hewlett Packard Enterprise.  Those statements should make much more sense after ![reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
+This repo delivers a script to create virtual machine file system images directly from a Debian repo.  VMs are then customized and configured with IVHSHMEM to emulate the Fabric-Attached Memory of The Machine from Hewlett Packard Enterprise.  Those statements should make much more sense after ![reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
 
-
-#### Description - HPE Internal Version
+#### Description
 
 Fabric-Attached Memory Emulation is an environment that can be used to explore the new architectural paradigm of The Machine.  Some knowledge of The Machine architecture is useful to use this suite, but it actually ignores the minutiae of the hardware.  Reasonable fluency with the QEMU/KVM/libvirt/virsh suite is highly recommended.
 
 The emulation employs QEMU virtual machines performing the role of "nodes" in The Machine.  Inter-Virtual Machine Shared Memory (IVSHMEM) is configured across all the "nodes" so they see a shared, global memory space.  This space can be accessed via mmap(2) in accordance with the true fabric-attached memory on The Machine.
-
-This project provides an automatic configurator script to set up a multi-node emulation environment.
 
 #### Setup and Execution
 
@@ -33,24 +30,24 @@ command if invoking sudo directly:
 
 works, as well as
 
-$ sudo -E emulation_configure.bash n
+    $ sudo -E emulation_configure.bash n
 
 or
 
-$ sudo VERBOSE=yes MIRROR=http://a.b.com/debian emulation_configure.bash n
+    $ sudo VERBOSE=yes MIRROR=http://a.b.com/debian emulation_configure.bash n
 
 #### Behind the scenes
 
 emulation_configure.bash performs the following actions:
 
-# Validates the host environment, starting with execution as root or sudo.  While it doesn't explicitly limit its execution to Debian Jessie, it does check for commands that may not exist on other Debian variants.  Other things are checked like file space and internal consistency.
-# Creates a libvirt virtual bridged network called "fabric_emul" which
-## Provides DHCP services via dnsmasq
-## Links all emulated VM "nodes" together on an intranet (ala The Machine)
-## Uses NAT to connect the intranet to the host system's external network.
-# Uses vmdebootstrap(1m) to create a new disk image (file) that serves as the template for each VM's file system.  This is the step that pulls from the Debian mirror (see MIRROR and PROXY above).  Most of the configuration is specified in the file fabric_emulation.vmd, with several options handled in the shell script.  This template file is a raw disk image yielding about eight gigabytes of file system space for a VM, more than enough for a non-graphical Linux development system.
-# Copy the template image for each VM and customize it (hostname, /etc/hosts, /etc/resolv.conf, root and user "fabric").  The raw image is then converted to a qcow2 (copy-on-write) which shrinks its size down to 800 megabytes.  That may grow with use.
-# Emits an invocation script which may be used to start all VMs.  That script is in $TMPDIR/fabric_emulation.bash.  The qemu commands contain stanzas necessary to create the IVSHMEM connectivity (see below).
+1. Validates the host environment, starting with execution as root or sudo.  While it doesn't explicitly limit its execution to Debian Jessie, it does check for commands that may not exist on other Debian variants.  Other things are checked like file space and internal consistency.
+1. Creates a libvirt virtual bridged network called "fabric_emul" which
+  2. Provides DHCP services via dnsmasq
+  2. Links all emulated VM "nodes" together on an intranet (ala The Machine)
+  2. Uses NAT to connect the intranet to the host system's external network.
+1. Uses vmdebootstrap(1m) to create a new disk image (file) that serves as the template for each VM's file system.  This is the step that pulls from the Debian mirror (see MIRROR and PROXY above).  Most of the configuration is specified in the file fabric_emulation.vmd, with several options handled in the shell script.  This template file is a raw disk image yielding about eight gigabytes of file system space for a VM, more than enough for a non-graphical Linux development system.
+1. Copy the template image for each VM and customize it (hostname, /etc/hosts, /etc/resolv.conf, root and user "fabric").  The raw image is then converted to a qcow2 (copy-on-write) which shrinks its size down to 800 megabytes.  That may grow with use.
+1. Emits an invocation script which may be used to start all VMs.  That script is in $TMPDIR/fabric_emulation.bash.  The qemu commands contain stanzas necessary to create the IVSHMEM connectivity (see below).
 
 #### Artifacts
 
