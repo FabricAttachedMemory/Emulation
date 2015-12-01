@@ -4,15 +4,15 @@ Experience the developer environment of next year's hardware _today_.  The Machi
 
 #### Description
 
-This repo delivers a script to create virtual machine file system images directly from a Debian repo.  VMs are then customized and configured with IVHSHMEM to emulate the Fabric-Attached Memory of The Machine from Hewlett Packard Enterprise.  Those statements should make much more sense after ![reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
+This repo delivers a script to create virtual machine file system images directly from a Debian repo.  VMs are then customized and configured to emulate the fabric-attached memory of The Machine.  Those statements should make much more sense after ![reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
 
 Fabric-Attached Memory Emulation is an environment that can be used to explore the new architectural paradigm of The Machine.  Some knowledge of The Machine architecture is useful to use this suite, but it actually ignores the minutiae of the hardware.  Reasonable fluency with the QEMU/KVM/libvirt/virsh suite is highly recommended.
 
-The emulation employs QEMU virtual machines performing the role of "nodes" in The Machine.  Inter-Virtual Machine Shared Memory (IVSHMEM) is configured across all the "nodes" so they see a shared, global memory space.  This space can be accessed via mmap(2) in accordance with the true fabric-attached memory on The Machine.
+The emulation employs QEMU virtual machines performing the role of "nodes" in The Machine.  Inter-Virtual Machine Shared Memory (IVSHMEM) is configured across all the "nodes" so they see a shared, global memory space.  This space can be accessed via mmap(2) ands will behave just the the memory centric computing on The Machine.
 
 #### Setup and Execution
 
-The emulation configurator script, *emulation_configure.bash*, is written for Debian 8.x (Jessie/stable).  It should have the packages necessary for x86_64 virtual machines: qemu-system-x86_64 and libvirtd-bin should bring in everything else.  You also need the vmdebootstrap package..
+The emulation configurator script, *emulation_configure.bash*, is written for Debian 8.x (Jessie/stable).  It should have the packages necessary for x86_64 virtual machines: qemu-system-x86_64 and libvirtd-bin should bring in everything else.  You also need the vmdebootstrap package.
 
 After cloning this repo, run the script; it takes the desired number of VMs as its sole argument.  Several of the commands in the script must be run as root; you can run the entire script as root (or sudo).  You can also run the script as a normal user: all necessary commands are run internally under "sudo".
 
