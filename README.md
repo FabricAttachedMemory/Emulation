@@ -1,8 +1,10 @@
 ### Emulation of Fabric-Attached Memory for The Machine
 
-This repo delivers a script to create virtual machine file system images directly from a Debian repo.  VMs are then customized and configured with IVHSHMEM to emulate the Fabric-Attached Memory of The Machine from Hewlett Packard Enterprise.  Those statements should make much more sense after ![reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
+Experience the developer environment of next year's hardware _today_.  The Machine from Hewlett Packard Enterprise prototype offers a new paradigm in memory-centric computing.  While the hardware won't be available until 2016, you can experiment with fabric-attached memory right now.
 
 #### Description
+
+This repo delivers a script to create virtual machine file system images directly from a Debian repo.  VMs are then customized and configured with IVHSHMEM to emulate the Fabric-Attached Memory of The Machine from Hewlett Packard Enterprise.  Those statements should make much more sense after ![reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
 
 Fabric-Attached Memory Emulation is an environment that can be used to explore the new architectural paradigm of The Machine.  Some knowledge of The Machine architecture is useful to use this suite, but it actually ignores the minutiae of the hardware.  Reasonable fluency with the QEMU/KVM/libvirt/virsh suite is highly recommended.
 
@@ -10,7 +12,9 @@ The emulation employs QEMU virtual machines performing the role of "nodes" in Th
 
 #### Setup and Execution
 
-The emulation configurator script, *emulation_configure.bash*, is written for Debian 8.x (Jessie/stable).  After cloning this repo, run the script; it takes the desired number of VMs as its sole argument.  Several of the commands in the script must be run as root; you can run the entire script as root.  You can also run the script as a normal user: all necessary commands are run internally under "sudo".
+The emulation configurator script, *emulation_configure.bash*, is written for Debian 8.x (Jessie/stable).  It should have the packages necessary for x86_64 virtual machines: qemu-system-x86_64 and libvirtd-bin should bring in everything else.  You also need the vmdebootstrap package..
+
+After cloning this repo, run the script; it takes the desired number of VMs as its sole argument.  Several of the commands in the script must be run as root; you can run the entire script as root (or sudo).  You can also run the script as a normal user: all necessary commands are run internally under "sudo".
 
 Several environment variables can be set (or exported first) that affect the operation of emulation_configure.bash:
 
@@ -53,13 +57,11 @@ emulation_configure.bash performs the following actions:
 
 The following files will be created in $TMPDIR after a successful run.
 
-fabricN.qcow2		The disk image file for VM "node" N
-fabric_emulation.bash	Shell script to start all VM "nodes"
-fabric_emulation.log	Trace file of all steps by emulation_configure.bash
-fabric_template.img	Pristine (un-customized) file-system image of 
-			vmdebootstrap.  This is a partitioned disk image and
-			is not needed to run the VMs.
-fabric_template.tar	Tarball of the root filesystem on fabric_template.img
+|fabricN.qcow2|		The disk image file for VM "node" N|
+|fabric_emulation.bash|	Shell script to start all VM "nodes"|
+|fabric_emulation.log|	Trace file of all steps by emulation_configure.bash|
+|fabric_template.img|	Pristine (un-customized) file-system image of vmdebootstrap.  This is a partitioned disk image and is not needed to run the VMs.|
+|fabric_template.tar|	Tarball of the root filesystem on fabric_template.img|
 
 #### VM Guest Environment
 
@@ -73,7 +75,7 @@ A reasonable development environment (gcc, make) is available.  This can be used
 
 #### IVSHMEM connectivity between all VMs
 
-Fabric-attached memory in a physical Machine is best used via memory accesses after the memory-mapped setup of mmap(2).  Emulation provides a resource for such user space programming via IVSHMEM.  A typical QEMU invocation line looks something like this: 
+Memory-centric computing in a The Machine is done used via memory accesses similar to those used with legacy memory-mapping.  Emulation provides a resource for such ![user space programming via IVSHMEM]{https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).  A typical QEMU invocation line looks something like this: 
 
     qemu-system-x86_64 -enable-kvm \
         -net bridge,br=fabric_em,helper=/usr/lib/qemu/qemu-bridge-helper \
