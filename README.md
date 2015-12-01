@@ -61,7 +61,7 @@ fabric_template.img	Pristine (un-customized) file-system image of
 			is not needed to run the VMs.
 fabric_template.tar	Tarball of the root filesystem on fabric_template.img
 
-# VM Guest ("Node") Environment
+#### VM Guest Environment
 
 The root password is "aresquare".  A single normal user also exists, "fabric", with password "rocks", and is enabled as a full "sudo" account.
 
@@ -97,7 +97,7 @@ As the IVSHMEM address space is physical and unmapped, a kernel driver is needed
 
     /sys/bus/pci/devices/0000:00:04.0/resource2
 
-If a user-space program on the VM opens and memory-maps this file via mmap(2), memory accesses go to the pseudo-physical address space shared across all VMs.  This file can only be memory-mapped on the VM; read and write is not implemented.
+If a user-space program on the VM opens and memory-maps this file via mmap(2), memory accesses go to the pseudo-physical address space shared across all VMs.  This file can only be memory-mapped on the VM; read and write is not implemented.To simplify the program, the resource2 file is symlinked at /mnt/fabric_emulation.
 
 A simple demo program is copied to the home directory of the "fabric" user on each VM.  Compile it on one node and run it (using sudo to execute).  Then go to the host VM and "cat /dev/shmem/fabric_em".  You should see uname output from the node.  Those same contents will appear to all other nodes, too (if you write a program that loads from the shared space instead of storing to it).
 

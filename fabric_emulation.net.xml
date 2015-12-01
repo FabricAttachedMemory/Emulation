@@ -1,0 +1,24 @@
+<!-- 
+https://github.com/FabricAttachedMemory/Emulation
+virsh will net-define with a loooong name, but choke on net-start.
+-->
+<network>
+  <name>fabric_emul</name>
+  <forward mode='nat'>
+    <nat>
+      <port start='1024' end='65535'/>
+    </nat>
+  </forward>
+  <bridge name='fabric_emul' stp='off' delay='0'/>
+  <mac address='52:54:48:50:45:fe'/>
+  <ip address='192.168.42.254' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.42.101' end='192.168.42.120'/>
+      <!-- Google for "virsh net-update" for another way to do this -->
+      <host mac='52:54:48:50:45:01' name='fabric1' ip='192.168.42.1'/>
+      <host mac='52:54:48:50:45:02' name='fabric2' ip='192.168.42.2'/>
+      <host mac='52:54:48:50:45:03' name='fabric3' ip='192.168.42.3'/>
+      <host mac='52:54:48:50:45:04' name='fabric4' ip='192.168.42.4'/>
+    </dhcp>
+  </ip>
+</network>

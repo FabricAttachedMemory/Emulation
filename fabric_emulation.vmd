@@ -1,0 +1,46 @@
+# Fabric Attached Memory Emulation configuration file for vmdebootstrap.  
+# The following values are crafted for the command line:
+# log, image, tarball, mirror, owner
+# "debootstrapopts" or "variant" depending on version of vmdebootstrap
+
+[config]
+verbose = True
+output =
+log-level = debug
+log-max = 0
+log-keep = 10
+log-mode = 0666
+dump-memory-profile = none
+memory-dump-interval = 300
+
+sparse = False
+size = 8G
+bootsize = 0
+boottype = ext2
+foreign = 
+
+arch = amd64
+distribution = stable
+
+package = aptitude,apt-utils,build-essential,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,pciutils,psmisc,psutils,ssh,vim
+custom-package =
+
+no-kernel = False	
+sudo = True
+
+enable-dhcp = True
+root-password = aresquare
+lock-root-password = False
+
+customize = 
+hostname = fabricXX
+user = fabric/rocks
+serial-console = False
+serial-console-command = /sbin/getty -L ttyS0 115200 vt100
+
+# "True" creates sources.list.d/base.conf but it duplicates sources.list
+configure-apt = False
+
+extlinux = False
+mbr = False
+grub = True
