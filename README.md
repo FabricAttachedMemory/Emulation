@@ -4,7 +4,7 @@ Experience the developer environment of next year's hardware _today_.  The Machi
 
 #### Description
 
-This repo delivers a script to create virtual machine file system images directly from a Debian repo.  VMs are then customized and configured to emulate the fabric-attached memory of The Machine.  Those statements should make much more sense after ![reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
+This repo delivers a script to create virtual machine file system images directly from a Debian repo.  VMs are then customized and configured to emulate the fabric-attached memory of The Machine.  Those statements should make much more sense after [reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
 
 Fabric-Attached Memory Emulation is an environment that can be used to explore the new architectural paradigm of The Machine.  Some knowledge of The Machine architecture is useful to use this suite, but it actually ignores the minutiae of the hardware.  Reasonable fluency with the QEMU/KVM/libvirt/virsh suite is highly recommended.
 
@@ -18,12 +18,12 @@ After cloning this repo, run the script; it takes the desired number of VMs as i
 
 Several environment variables can be set (or exported first) that affect the operation of emulation_configure.bash:
 
-|Variable|Purpose
-|---|---|
-|VERBOSE|Normally the script is fairly "quiet", only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $TMPDIR/fabric_emulation.log Default: not set|
-|TMPDIR|All resulting artifacts are located here.  A size check is done to ensure there's enough space.  If that check fails, either free up space or set TMPDIR to another directory.  Default: /tmp|
-|MIRROR|The script builds VM images by pulling packages from Debian repo.  Default: http://ftp.us.debian.org/debian|
-|PROXY|Any proxy needed to reach $MIRROR.  Default: not set|
+| Variable | Purpose |
+|----------|---------|
+| VERBOSE |Normally the script is fairly "quiet", only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $TMPDIR/fabric_emulation.log Default: not set|
+| TMPDIR | All resulting artifacts are located here.  A size check is done to ensure there's enough space.  If that check fails, either free up space or set TMPDIR to another directory.  Default: /tmp|
+| MIRROR | The script builds VM images by pulling packages from Debian repo.  Default: http://ftp.us.debian.org/debian|
+| PROXY | Any proxy needed to reach $MIRROR.  Default: not set|
 
 These variables must be seen in the script's environment so use the "-E"
 command if invoking sudo directly:
@@ -57,11 +57,13 @@ emulation_configure.bash performs the following actions:
 
 The following files will be created in $TMPDIR after a successful run.
 
-|fabricN.qcow2|		The disk image file for VM "node" N|
-|fabric_emulation.bash|	Shell script to start all VM "nodes"|
-|fabric_emulation.log|	Trace file of all steps by emulation_configure.bash|
-|fabric_template.img|	Pristine (un-customized) file-system image of vmdebootstrap.  This is a partitioned disk image and is not needed to run the VMs.|
-|fabric_template.tar|	Tarball of the root filesystem on fabric_template.img|
+| Artifact | Description |
+|----------|-------------|
+| fabricN.qcow2 | The disk image file for VM "node" N |
+| fabric_emulation.bash | Shell script to start all VM "nodes" |
+| fabric_emulation.log | Trace file of all steps by emulation_configure.bash |
+| fabric_template.img |	Pristine (un-customized) file-system image of vmdebootstrap.  This is a partitioned disk image and is not needed to run the VMs. |
+| fabric_template.tar |	Tarball of the root filesystem on fabric_template.img |
 
 #### VM Guest Environment
 
@@ -75,7 +77,7 @@ A reasonable development environment (gcc, make) is available.  This can be used
 
 #### IVSHMEM connectivity between all VMs
 
-Memory-centric computing in a The Machine is done used via memory accesses similar to those used with legacy memory-mapping.  Emulation provides a resource for such ![user space programming via IVSHMEM]{https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).  A typical QEMU invocation line looks something like this: 
+Memory-centric computing in a The Machine is done used via memory accesses similar to those used with legacy memory-mapping.  Emulation provides a resource for such [user space programming via IVSHMEM](https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).  A typical QEMU invocation line looks something like this: 
 
     qemu-system-x86_64 -enable-kvm \
         -net bridge,br=fabric_em,helper=/usr/lib/qemu/qemu-bridge-helper \
