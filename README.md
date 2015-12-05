@@ -4,7 +4,7 @@ Experience the developer environment of next year's hardware _today_.  The Machi
 
 #### Description
 
-This repo delivers a script to create virtual machine file system images directly from a Debian repo.  VMs are then customized and configured to emulate the fabric-attached memory of The Machine.  Those statements should make much more sense after ![reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
+This repo delivers a script to create virtual machine file system images directly from a Debian repo.  VMs are then customized and configured to emulate the fabric-attached memory of The Machine.  Those statements should make much more sense after [reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
 
 Fabric-Attached Memory Emulation is an environment that can be used to explore the new architectural paradigm of The Machine.  Some knowledge of The Machine architecture is useful to use this suite, but it actually ignores the minutiae of the hardware.  Reasonable fluency with the QEMU/KVM/libvirt/virsh suite is highly recommended.
 
