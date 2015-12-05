@@ -18,12 +18,12 @@ After cloning this repo, run the script; it takes the desired number of VMs as i
 
 Several environment variables can be set (or exported first) that affect the operation of emulation_configure.bash:
 
-| Variable | Purpose |
-|----------|---------|
-| VERBOSE |Normally the script is fairly "quiet", only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $TMPDIR/fabric_emulation.log Default: not set|
-| TMPDIR | All resulting artifacts are located here.  A size check is done to ensure there's enough space.  If that check fails, either free up space or set TMPDIR to another directory.  Default: /tmp|
-| MIRROR | The script builds VM images by pulling packages from Debian repo.  Default: http://ftp.us.debian.org/debian|
-| PROXY | Any proxy needed to reach $MIRROR.  Default: not set|
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| VERBOSE |Normally the script is fairly "quiet", only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $TMPDIR/fabric_emulation.log | not set |
+| TMPDIR | All resulting artifacts are located here.  A size check is done to ensure there's enough space.  If that check fails, either free up space or set TMPDIR to another directory. | /tmp |
+| MIRROR | The script builds VM images by pulling packages from Debian repo. | http://ftp.us.debian.org/debian |
+| PROXY | Any proxy needed to reach $MIRROR. | not set |
 
 These variables must be seen in the script's environment so use the "-E"
 command if invoking sudo directly:
