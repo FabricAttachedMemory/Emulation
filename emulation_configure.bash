@@ -25,7 +25,7 @@ export TMPDIR=${TMPDIR:-/tmp}
 
 export MIRROR=${MIRROR:-http://ftp.us.debian.org/debian}
 
-export PROXY=${HTTP_PROXY:-}	# Default: no proxy
+export PROXY=${PROXY:-}		# Default: no proxy override
 
 export VERBOSE=${VERBOSE:-}	# Default: mostly quiet; "yes" overrides
 
@@ -230,6 +230,37 @@ function validate_template_image() {
     return $RET
 }
 
+
+###########################################################################
+# vmdebootstrap uses debootstrap which uses wget to retrieve packages.
+# wget obeys (lower case) "http_proxy" but can be overridden by 
+# or $HOME/.wgetrc or /etc/wgetrc.  Try to help; export http_proxy to
+# avoid a reported issue in the VMD variable.
+
+function expose_proxy() {
+    for RC in $HOME/.wgetrc /etc/wgetrc; do
+	TMP=`grep '^[[:space:]]*http_proxy' $RC 2>/dev/null | sed 's/[[:space:]]//g'`
+	if [ "$TMP" ]; then
+	    eval "$TMP"
+	    export http_proxy
+	    echo "http_proxy=$http_proxy (from $RC)"
+	    return 0
+	fi
+    done
+    if [ "$PROXY" ]; then	# override for this script
+	http_proxy=$PROXY
+	export http_proxy
+	echo "http_proxy=$http_proxy (from override by PROXY=)"
+	return 0
+    fi
+    if [ "${http_proxy:-}" ]; then	# already there
+	echo "http_proxy=$http_proxy (existing environment)"
+	return 0
+    fi
+    echo "No proxy setting can be ascertained"
+    return 0
+}
+
 ###########################################################################
 # This takes about six minutes if the mirror is unproxied on a LAN.  YMMV.
 
@@ -239,11 +270,13 @@ function manifest_template_image() {
     if validate_template_image; then
     	yesno "Re-use existing $TEMPLATE"
 	[ $? -eq 0 ] && return 0
-    fi 
+    fi
+
+    expose_proxy
 
     CFG=$PROJECT.vmd	# local
 
-    VMD="$SUDO http_proxy=$PROXY vmdebootstrap --no-default-configs --config=$CFG"
+    VMD="$SUDO vmdebootstrap --no-default-configs --config=$CFG"
 
     # Does this vintage of vmdeboostrap eat "variant" or "debootstrapopts"?
 
