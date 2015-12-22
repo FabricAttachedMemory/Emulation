@@ -398,7 +398,7 @@ EODOIT
 	echo "	-netdev bridge,id=$NETWORK,br=$NETWORK,helper=$QBH \\"
 	echo "	-device virtio-net,mac=$MAC,netdev=$NETWORK \\"
 	echo "	-device ivshmem,shm=$PROJECT,size=1024 \\"
-	echo "	\$NODISPLAY /tmp/$NODE.qcow2 &"
+	echo "	\$NODISPLAY $TMPDIR/$NODE.qcow2 &"
 	echo
     done
     exec 1>&3		# Restore stdout
