@@ -20,10 +20,10 @@ Several environment variables can be set (or exported first) that affect the ope
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| VERBOSE |Normally the script is fairly "quiet", only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $TMPDIR/fabric_emulation.log | not set |
-| TMPDIR | All resulting artifacts are located here.  A size check is done to ensure there's enough space.  If that check fails, either free up space or set TMPDIR to another directory. | /tmp |
+| ARTDIR | All resulting artifacts are located here.  A size check is done to ensure there's enough space.  If that check fails, either free up space or set ARTDIR to another directory. | /tmp |
 | MIRROR | The script builds VM images by pulling packages from Debian repo. | http://ftp.us.debian.org/debian |
 | PROXY | Any proxy needed to reach $MIRROR. | not set |
+| VERBOSE |Normally the script is fairly "quiet", only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $ARTDIR/fabric_emulation.log | not set |
 
 These variables must be seen in the script's environment so use the "-E"
 command if invoking sudo directly:
@@ -51,11 +51,11 @@ emulation_configure.bash performs the following actions:
   2. Uses NAT to connect the intranet to the host system's external network.
 1. Uses vmdebootstrap(1m) to create a new disk image (file) that serves as the template for each VM's file system.  This is the step that pulls from the Debian mirror (see MIRROR and PROXY above).  Most of the configuration is specified in the file fabric_emulation.vmd, with several options handled in the shell script.  This template file is a raw disk image yielding about eight gigabytes of file system space for a VM, more than enough for a non-graphical Linux development system.
 1. Copy the template image for each VM and customize it (hostname, /etc/hosts, /etc/resolv.conf, root and user "fabric").  The raw image is then converted to a qcow2 (copy-on-write) which shrinks its size down to 800 megabytes.  That may grow with use.
-1. Emits an invocation script which may be used to start all VMs.  That script is in $TMPDIR/fabric_emulation.bash.  The qemu commands contain stanzas necessary to create the IVSHMEM connectivity (see below).
+1. Emits an invocation script which may be used to start all VMs.  That script is in $ARTDIR/fabric_emulation.bash.  The qemu commands contain stanzas necessary to create the IVSHMEM connectivity (see below).
 
 ## Artifacts
 
-The following files will be created in $TMPDIR after a successful run.
+The following files will be created in $ARTDIR after a successful run.  Note: ARTDIR was originally TMPDIR, but that variable is suppressed by glibc on setuid programs which breaks under certain uses of sudo.
 
 | Artifact | Description |
 |----------|-------------|

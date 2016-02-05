@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2015 Hewlett Packard Enterprise Development LP
+# Copyright 2015-2016 Hewlett Packard Enterprise Development LP
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License, version 2  as 
@@ -19,9 +19,11 @@
 # The Machine from Hewlett Packard Enterprise.
 # See http://github.com/FabricAttachedMemory for more details.
 
-# Set these in your environment to override the following defaults
+# Set these in your environment to override the following defaults.
+# Note: ARTDIR was originally TMPDIR, but that variable is suppressed
+# by glibc on setuid programs which breaks under certain uses of sudo.
 
-export TMPDIR=${TMPDIR:-/tmp}
+export ARTDIR=${ARTDIR:-/tmp}	# ARTifact DIRectory
 
 export MIRROR=${MIRROR:-http://ftp.us.debian.org/debian}
 
@@ -34,11 +36,11 @@ export VERBOSE=${VERBOSE:-}	# Default: mostly quiet; "yes" overrides
 
 HOSTUSERBASE=fabric
 PROJECT=${HOSTUSERBASE}_emulation
-LOG=$TMPDIR/$PROJECT.log
+LOG=$ARTDIR/$PROJECT.log
 NETWORK=${HOSTUSERBASE}_emul	# libvirt: occasional name length limits
 MACBASE="52:54:48:50:45:"
-TEMPLATE=$TMPDIR/${HOSTUSERBASE}_template.img
-TARBALL=$TMPDIR/${HOSTUSERBASE}_template.tar
+TEMPLATE=$ARTDIR/${HOSTUSERBASE}_template.img
+TARBALL=$ARTDIR/${HOSTUSERBASE}_template.tar
 
 ###########################################################################
 # Helpers
@@ -154,11 +156,11 @@ function verify_host_environment() {
     verify_QBH
 
     # Space for 2 raw image files, the tarball, all qcows, and slop
-    [ ! -d "$TMPDIR" ] && die "$TMPDIR is not a directory"
+    [ ! -d "$ARTDIR" ] && die "$ARTDIR is not a directory"
     let GNEEDED=16+1+$NODES+1
     let KNEEDED=1000000*$GNEEDED
-    TMPFREE=`df "$TMPDIR" | awk '/^\// {print $4}'`
-    [ $TMPFREE -lt $KNEEDED ] && die "$TMPDIR has less than $GNEEDED G free"
+    TMPFREE=`df "$ARTDIR" | awk '/^\// {print $4}'`
+    [ $TMPFREE -lt $KNEEDED ] && die "$ARTDIR has less than $GNEEDED G free"
 
     return 0
 }
@@ -296,7 +298,7 @@ function manifest_template_image() {
     quiet $VMD $VAROPT --log=$LOG --image=$TEMPLATE --tarball=$TARBALL \
     	--mirror=$MIRROR --owner=$SUDO_USER
     RET=$?
-    quiet $SUDO chown $SUDO_USER "/$TMPDIR/${HOSTUSERBASE}.*" 	# --owner bug
+    quiet $SUDO chown $SUDO_USER "/$ARTDIR/${HOSTUSERBASE}.*" 	# --owner bug
     if [ $RET -ne 0 ]; then
 	BAD=`mount | grep '/dev/loop[[:digit:]]+p[[:digit:]]+'`
 	[ $BAD ] && echo "mount of $BAD may be a problem" | tee -a $LOG
@@ -352,8 +354,8 @@ function clone_VMs()
     sep Generating file system images for $NODES virtual machines
     for N in `seq $NODES`; do
     	NEWHOST=${HOSTUSERBASE}`printf "%d" $N`
-    	NEWIMG="$TMPDIR/$NEWHOST.img"
-	QCOW2="$TMPDIR/$NEWHOST.qcow2"
+    	NEWIMG="$ARTDIR/$NEWHOST.img"
+	QCOW2="$ARTDIR/$NEWHOST.qcow2"
 	echo "Customize  $NEWHOST..."
 	quiet cp $TEMPLATE $NEWIMG
 
@@ -372,7 +374,7 @@ function clone_VMs()
 # When in doubt, "qemu-system-x86_64 -device ?" or "-device virtio-net,?"
 
 function emit_invocations() {
-    DOIT=$TMPDIR/$PROJECT.bash
+    DOIT=$ARTDIR/$PROJECT.bash
     sep "\nVM invocation script is $DOIT"
 
     cat >$DOIT <<EODOIT
@@ -398,7 +400,7 @@ EODOIT
 	echo "	-netdev bridge,id=$NETWORK,br=$NETWORK,helper=$QBH \\"
 	echo "	-device virtio-net,mac=$MAC,netdev=$NETWORK \\"
 	echo "	-device ivshmem,shm=$PROJECT,size=1024 \\"
-	echo "	\$NODISPLAY $TMPDIR/$NODE.qcow2 &"
+	echo "	\$NODISPLAY $ARTDIR/$NODE.qcow2 &"
 	echo
     done
     exec 1>&3		# Restore stdout
