@@ -19,6 +19,18 @@ virsh will net-define with a loooong name, but choke on net-start.
       <host mac='52:54:48:50:45:02' name='fabric2' ip='192.168.42.2'/>
       <host mac='52:54:48:50:45:03' name='fabric3' ip='192.168.42.3'/>
       <host mac='52:54:48:50:45:04' name='fabric4' ip='192.168.42.4'/>
+      <host mac='52:54:48:50:45:05' name='fabric5' ip='192.168.42.5'/>
+      <host mac='52:54:48:50:45:06' name='fabric6' ip='192.168.42.6'/>
+      <host mac='52:54:48:50:45:07' name='fabric7' ip='192.168.42.7'/>
+      <host mac='52:54:48:50:45:08' name='fabric8' ip='192.168.42.8'/>
+      <host mac='52:54:48:50:45:09' name='fabric9' ip='192.168.42.9'/>
+      <host mac='52:54:48:50:45:10' name='fabric10' ip='192.168.42.10'/>
+      <host mac='52:54:48:50:45:11' name='fabric11' ip='192.168.42.11'/>
+      <host mac='52:54:48:50:45:12' name='fabric12' ip='192.168.42.12'/>
+      <host mac='52:54:48:50:45:13' name='fabric13' ip='192.168.42.13'/>
+      <host mac='52:54:48:50:45:14' name='fabric14' ip='192.168.42.14'/>
+      <host mac='52:54:48:50:45:15' name='fabric15' ip='192.168.42.15'/>
+      <host mac='52:54:48:50:45:16' name='fabric16' ip='192.168.42.16'/>
     </dhcp>
   </ip>
 </network>
