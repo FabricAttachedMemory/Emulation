@@ -340,6 +340,20 @@ ff02::2 ip6-allrouters
 192.168.42.2	${HOSTUSERBASE}2
 192.168.42.3	${HOSTUSERBASE}3
 192.168.42.4	${HOSTUSERBASE}4
+192.168.42.5    ${HOSTUSERBASE}5
+192.168.42.6    ${HOSTUSERBASE}6
+192.168.42.7    ${HOSTUSERBASE}7
+192.168.42.8    ${HOSTUSERBASE}8
+192.168.42.9    ${HOSTUSERBASE}9
+192.168.42.10    ${HOSTUSERBASE}10
+192.168.42.11    ${HOSTUSERBASE}11
+192.168.42.12    ${HOSTUSERBASE}12
+192.168.42.13    ${HOSTUSERBASE}13
+192.168.42.14    ${HOSTUSERBASE}14
+192.168.42.15    ${HOSTUSERBASE}15
+192.168.42.16    ${HOSTUSERBASE}16
+
+
 192.168.42.254	vmhost `hostname`
 EOHOSTS
 
@@ -415,7 +429,7 @@ EODOIT
 [ $# -ne 1 -o "${1:0:1}" = '-' ] && die "usage: `basename $0` [ -h ] VMcount"
 typeset -ir NODES=$1	# will evaluate to zero if non-integer
 set -u
-[ "$NODES" -lt 1 -o "$NODES" -gt 4 ] && die "'$1' VMs is not in range 1-4"
+[ "$NODES" -lt 1 -o "$NODES" -gt 16 ] && die "'$1' VMs is not in range 1-16"
 
 trap "rm -f debootstrap.log; exit 0" TERM QUIT INT HUP EXIT # always empty
 
