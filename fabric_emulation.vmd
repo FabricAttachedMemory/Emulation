@@ -17,7 +17,7 @@ sparse = False
 size = 8G
 bootsize = 0
 boottype = ext2
-foreign = 
+foreign =
 
 arch = amd64
 distribution = stable
@@ -25,7 +25,7 @@ distribution = stable
 package = aptitude,apt-utils,build-essential,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,pciutils,psmisc,psutils,ssh,vim
 custom-package =
 
-no-kernel = False	
+no-kernel = False
 sudo = True
 
 enable-dhcp = True

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2015-2016 Hewlett Packard Enterprise Development LP
+# Copyright 2015-2017 Hewlett Packard Enterprise Development LP
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License, version 2  as 
@@ -294,8 +294,9 @@ function manifest_template_image() {
     # be possible to construct a status bar based on df of that mount.
     # NOTE: killing the script here may leave a dangling mount that
     # interferes with subsequent runs, but doesn't complain properly.
+    # Later versions of vmdebootstrap don't take both --image and --tarball.
 
-    quiet $VMD $VAROPT --log=$LOG --image=$TEMPLATE --tarball=$TARBALL \
+    quiet $VMD $VAROPT --log=$LOG --image=$TEMPLATE \
     	--mirror=$MIRROR --owner=$SUDO_USER
     RET=$?
     quiet $SUDO chown $SUDO_USER "/$ARTDIR/${HOSTUSERBASE}.*" 	# --owner bug
@@ -399,7 +400,8 @@ EODOIT
 	echo "nohup \$QEMU -name $NODE \\"
 	echo "	-netdev bridge,id=$NETWORK,br=$NETWORK,helper=$QBH \\"
 	echo "	-device virtio-net,mac=$MAC,netdev=$NETWORK \\"
-	echo "	-device ivshmem,shm=$PROJECT,size=1024 \\"
+        echo "  --object memory-backend-file,size=1024,mem-path=/dev/shm/$PROJECT,id=FAM,share=on \\"
+        echo "  -device ivshmem-plain,memdev=FAM \\"
 	echo "	\$NODISPLAY $ARTDIR/$NODE.qcow2 &"
 	echo
     done
@@ -415,7 +417,7 @@ EODOIT
 [ $# -ne 1 -o "${1:0:1}" = '-' ] && die "usage: `basename $0` [ -h ] VMcount"
 typeset -ir NODES=$1	# will evaluate to zero if non-integer
 set -u
-[ "$NODES" -lt 1 -o "$NODES" -gt 4 ] && die "'$1' VMs is not in range 1-4"
+[ "$NODES" -lt 1 -o "$NODES" -gt 40 ] && die "'$1' VMs is not in range 1-40"
 
 trap "rm -f debootstrap.log; exit 0" TERM QUIT INT HUP EXIT # always empty
 
