@@ -25,6 +25,10 @@
 
 export ARTDIR=${ARTDIR:-/tmp}	# ARTifact DIRectory
 
+export FAM=${FAM:-/dev/shm/GlobalNVM}
+
+export FAMSIZE=${FAMSIZE:-4G}
+
 export MIRROR=${MIRROR:-http://ftp.us.debian.org/debian}
 
 export PROXY=${PROXY:-}		# Default: no proxy override
@@ -38,7 +42,7 @@ HOSTUSERBASE=fabric
 PROJECT=${HOSTUSERBASE}_emulation
 LOG=$ARTDIR/$PROJECT.log
 NETWORK=${HOSTUSERBASE}_emul	# libvirt: occasional name length limits
-MACBASE="52:54:48:50:45:"
+OUI="48:50:45"			# man ascii
 TEMPLATE=$ARTDIR/${HOSTUSERBASE}_template.img
 TARBALL=$ARTDIR/${HOSTUSERBASE}_template.tar
 
@@ -102,8 +106,8 @@ EOMSG
     # Always fix $ACL whether missing entirely or just missing the entry.
     quiet $SUDO mkdir -m 755 -p `dirname $ACL`
     PATTERN="allow $NETWORK"
-    quiet $SUDO grep -q "^$PATTERN\$" $ACL 2>/dev/null
-    [ $? -ne 0 ] && echo $PATTERN | quiet $SUDO tee --append $ACL >/dev/null
+    quiet $SUDO grep -q "'^$PATTERN\$'" $ACL
+    [ $? -ne 0 ] && echo $PATTERN | quiet $SUDO tee --append $ACL
 
     # "Failed to parse default acl file" if these are wrong.
     quiet $SUDO chown root:libvirt-qemu $ACL
@@ -153,6 +157,8 @@ function verify_host_environment() {
 	SUDO_USER=${SUDO_USER:-root}
     fi
 
+    set -- `qemu-system-x86_64 -version`
+    [ "$4" != "2.6.0" ] && die "qemu is not version 2.6.0"
     verify_QBH
 
     # Space for 2 raw image files, the tarball, all qcows, and slop
@@ -188,12 +194,12 @@ function libvirt_bridge() {
     $VIRSH net-list --all | grep -q '^ Name.*State.*Autostart.*Persistent$'
     [ $? -ne 0 ] && die "virsh net-list command is not working as expected"
 
-    for CMD in stop destroy; do
-	quiet $VIRSH net-$CMD $NETWORK
+    for CMD in net-stop net-destroy net-undefine; do
+	quiet $VIRSH $CMD $NETWORK
+	sleep 1
     done
-    quiet $VIRSH net-undefine $NETWORK
 
-    # virsh will defin a net with a loooong name, but fail on starting it.
+    # virsh will define a net with a loooong name, but fail on starting it.
     quiet $VIRSH net-define $XML
     [ $? -ne 0 ] && die "Cannot define the network $NETWORK:\n`cat $XML`"
 
@@ -264,10 +270,29 @@ function expose_proxy() {
 }
 
 ###########################################################################
+# Add the packages for L4TM (Linux for The Machine) via the secondary,
+# partial repo of l4fame.
+
+function transmogrify_l4tm() {
+    L4FAME='http://downloads.linux.hpe.com/repo/l4fame/'
+    SOURCESDOTD="$MNT/etc/apt/sources.list.d/l4fame.list"
+    echo "deb $L4FAME unstable/" > $SOURCESDOTD			# create
+    echo "deb-src $L4FAME unstable/" >> $SOURCESDOTD		# append
+
+    echo "Upgrading Debian to L4TM..."
+    $SUDO chroot $MNT/ sh -c "apt update -y --assume-yes"
+    $SUDO chroot $MNT/ sh -c "apt upgrade -y --assume-yes"
+    $SUDO chroot $MNT/ sh -c "apt dist-upgrade -y --assume-yes"
+
+    echo "Adding packages..."
+    $SUDO chroot $MNT/ sh -c "DEBIAN_FRONTEND=noninteractive apt-get -y --assume-yes install l4fame-node"
+}
+
+###########################################################################
 # This takes about six minutes if the mirror is unproxied on a LAN.  YMMV.
 
 function manifest_template_image() {
-    sep Creating pristine VM file system image $TEMPLATE
+    sep Creating VM system image $TEMPLATE from $MIRROR
 
     if validate_template_image; then
     	yesno "Re-use existing $TEMPLATE"
@@ -305,7 +330,11 @@ function manifest_template_image() {
 	[ $BAD ] && echo "mount of $BAD may be a problem" | tee -a $LOG
     	die "Build of $TEMPLATE failed"
     fi
+
     validate_template_image || die "Validation of $TEMPLATE failed"
+
+    transmogrify_l4tm
+
     return 0
 }
 
@@ -323,9 +352,6 @@ function emit_files() {
     echo 'nameserver	192.168.42.254' | \
     	$SUDO tee $MNT/etc/resolv.conf >/dev/null
 
-    # With the simple invocation, this is always true
-    $SUDO ln -s /sys/bus/pci/devices/0000:00:04.0/resource2 $MNT/$MNT
-
     #------------------------------------------------------------------
 
     $SUDO tee $MNT/etc/hosts >/dev/null << EOHOSTS
@@ -337,12 +363,14 @@ function emit_files() {
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 
-192.168.42.1	${HOSTUSERBASE}1
-192.168.42.2	${HOSTUSERBASE}2
-192.168.42.3	${HOSTUSERBASE}3
-192.168.42.4	${HOSTUSERBASE}4
 192.168.42.254	vmhost `hostname`
+
 EOHOSTS
+
+    for I in `seq 1 40`; do
+    	echo 192.168.42.$I "${HOSTUSERBASE}$I" | \
+		sudo tee $MNT/etc/hosts >/dev/null
+    done
 
     return 0
 }
@@ -357,7 +385,7 @@ function clone_VMs()
     	NEWHOST=${HOSTUSERBASE}`printf "%d" $N`
     	NEWIMG="$ARTDIR/$NEWHOST.img"
 	QCOW2="$ARTDIR/$NEWHOST.qcow2"
-	echo "Customize  $NEWHOST..."
+	echo "Customize $NEWHOST..."
 	quiet cp $TEMPLATE $NEWIMG
 
 	mount_image $NEWIMG || die "Cannot mount $NEWIMG"
@@ -396,11 +424,12 @@ EODOIT
     exec >>$DOIT	# ...hijacking it
     for N in `seq $NODES`; do
 	NODE=$HOSTUSERBASE$N
-	MAC=$MACBASE`printf "%02d" $N`
+	D2=`printf "%02d" $N`
+	MAC="$OUI:${D2}:${D2}:${D2}"
 	echo "nohup \$QEMU -name $NODE \\"
 	echo "	-netdev bridge,id=$NETWORK,br=$NETWORK,helper=$QBH \\"
 	echo "	-device virtio-net,mac=$MAC,netdev=$NETWORK \\"
-        echo "  --object memory-backend-file,size=1024,mem-path=/dev/shm/$PROJECT,id=FAM,share=on \\"
+        echo "  --object memory-backend-file,size=$FAMSIZE,mem-path=$FAM,id=FAM,share=on \\"
         echo "  -device ivshmem-plain,memdev=FAM \\"
 	echo "	\$NODISPLAY $ARTDIR/$NODE.qcow2 &"
 	echo
