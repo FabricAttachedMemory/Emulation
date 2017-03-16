@@ -59,14 +59,18 @@ function sep() {
 function die() {
     echo -e "Error: $*" >&2
     echo -e "\n$0 failed:\n$*\n" >> $LOG
-    [ "$VERBOSE" ] && $SUDO env | sort | $SUDO tee --append $LOG >/dev/null
+    [ "$VERBOSE" ] && env | sort >> $LOG
     echo -e "\n$LOG may have more details" >&2
     exit 1
 }
 
 function quiet() {
-    [ "$VERBOSE" ] && echo $*
-    eval $* >/dev/null 2>&1
+    if [ "$VERBOSE" ]; then
+    	echo $*
+    	eval $*
+    else
+    	eval $* >/dev/null 2>&1
+    fi
     return $?
 }
 
@@ -107,7 +111,7 @@ EOMSG
     quiet $SUDO mkdir -m 755 -p `dirname $ACL`
     PATTERN="allow $NETWORK"
     quiet $SUDO grep -q "'^$PATTERN\$'" $ACL
-    [ $? -ne 0 ] && echo $PATTERN | quiet $SUDO tee --append $ACL
+    [ $? -ne 0 ] && echo $PATTERN | quiet $SUDO tee -a $ACL
 
     # "Failed to parse default acl file" if these are wrong.
     quiet $SUDO chown root:libvirt-qemu $ACL
@@ -120,7 +124,7 @@ EOMSG
 # vmdebootstrap requires root, but first insure other commands exist.
 # Ass-u-me coreutils is installed.
 
-SUDO=
+SUDO="sudo -E"
 
 function verify_host_environment() {
     sep Verifying host environment
@@ -149,9 +153,9 @@ function verify_host_environment() {
     [ "$MISSING" ] && die "The following command(s) are needed:\n$MISSING"
     if [ "$USER" = root ]; then
 	SUDO_USER=${SUDO_USER:-root}
+	SUDO=
     else
     	sudo echo || die "sudo access is needed by this script."
-	SUDO='sudo -E'
 	MAYBE=`$SUDO env | grep SUDO_USER`
 	[ "$MAYBE" ] && eval $MAYBE
 	SUDO_USER=${SUDO_USER:-root}
@@ -194,7 +198,7 @@ function libvirt_bridge() {
     $VIRSH net-list --all | grep -q '^ Name.*State.*Autostart.*Persistent$'
     [ $? -ne 0 ] && die "virsh net-list command is not working as expected"
 
-    for CMD in net-stop net-destroy net-undefine; do
+    for CMD in net-destroy net-undefine; do
 	quiet $VIRSH $CMD $NETWORK
 	sleep 1
     done
@@ -214,24 +218,45 @@ function libvirt_bridge() {
 ###########################################################################
 
 MNT=/mnt/$PROJECT
+BINDFWD="/proc /sys /run /dev /dev/pts"
+BINDREV="`echo $BINDFWD | tr ' ' '\n' | tac`"
 
 function mount_image() {
-    quiet $SUDO umount $MNT		# Singleton
+    for BIND in $BINDREV; do quiet $SUDO umount $MNT$BIND; done
+    quiet $SUDO umount $MNT
     if [ $# -eq 0 ]; then
-	quiet $SUDO rmdir -f $MNT	# Leave no traces
+	quiet $SUDO rmdir $MNT	# Leave no traces
 	return 0
     fi
     LOCALIMG="$*"
-    quiet $SUDO mkdir $MNT
+    [ ! -f $LOCALIMG ] && return 1
+    quiet $SUDO mkdir -p $MNT
     quiet $SUDO mount -oloop,offset=1M "$LOCALIMG" $MNT
-    return $?
+    [  $? -ne 0 ] && echo "Mount of $LOCALIMG failed" >&2 && return 1
+
+    # bind mounts for grub-probe from update-initramfs, etc
+    OKREV=
+    for BIND in $BINDFWD; do
+	quiet $SUDO mkdir -p $MNT$BIND
+	quiet $SUDO mount --bind $BIND $MNT$BIND
+	if [ $? -ne 0 ]; then
+	    echo "Bind mount of $BIND failed" >&2
+	    [ "$OKREV" ] && for O in "$OKREV"; do quiet $SUDO umount $MNT$O; done
+	    quiet $SUDO umount $MNT
+	    return 1
+	fi
+	quiet echo Bound $BIND
+	OKREV="$BIND $OKREV"	# reverse order is important during failures
+    done
+    return 0
 }
 
 ###########################################################################
+# Tri-state return value
 
 function validate_template_image() {
     [ -f $TEMPLATE ] || return 1
-    mount_image $TEMPLATE || return 1
+    mount_image $TEMPLATE || return 255		# aka return -1
     test -d $MNT/home/$HOSTUSERBASE
     RET=$?
     mount_image
@@ -271,21 +296,48 @@ function expose_proxy() {
 
 ###########################################################################
 # Add the packages for L4TM (Linux for The Machine) via the secondary,
-# partial repo of l4fame.
+# partial repo of l4fame.  It was built with mini-dinstall so the
+# syntax in source.list looks a little funky.
 
-function transmogrify_l4tm() {
-    L4FAME='http://downloads.linux.hpe.com/repo/l4fame/'
-    SOURCESDOTD="$MNT/etc/apt/sources.list.d/l4fame.list"
-    echo "deb $L4FAME unstable/" > $SOURCESDOTD			# create
-    echo "deb-src $L4FAME unstable/" >> $SOURCESDOTD		# append
+function transmogrify_l4fame() {
+    sep "Extending template with L4FAME: updating sources..."
+    mount_image $TEMPLATE || return 1
+    L4FAME='http://downloads.linux.hpe.com/repo/l4fame'
+    SOURCES="$MNT/etc/apt/sources.list.d/l4fame.list"
+    APTCONF="$MNT/etc/apt/apt.conf.d/00l4fame.conf"
+    echo "deb $L4FAME unstable/" | $SUDO tee $SOURCES 2>/dev/null
+    echo "deb-src $L4FAME unstable/" | $SUDO tee -a $SOURCES 2>/dev/null
+    if [ "$PROXY" ]; then
+    	echo "Acquire::http::Proxy \"$PROXY\";" | sudo tee $APTCONF >/dev/null
+    fi
 
-    echo "Upgrading Debian to L4TM..."
-    $SUDO chroot $MNT/ sh -c "apt update -y --assume-yes"
-    $SUDO chroot $MNT/ sh -c "apt upgrade -y --assume-yes"
-    $SUDO chroot $MNT/ sh -c "apt dist-upgrade -y --assume-yes"
+    # Without a key, you get error message on upgrade:
+    # W: No sandbox user '_apt' on the system, can not drop privileges
+    # N: Updating from such a repository can't be done securely, and is
+    #    therefore disabled by default.
+    # N: See apt-secure(8) manpage for repository creation and user
+    #    configuration details.
 
-    echo "Adding packages..."
-    $SUDO chroot $MNT/ sh -c "DEBIAN_FRONTEND=noninteractive apt-get -y --assume-yes install l4fame-node"
+    echo "Adding packages..."	# Assumes wget came with vmdebootstrap
+
+    quiet $SUDO chroot $MNT sh -c \
+    	'wget -O - https://db.debian.org/fetchkey.cgi?fingerprint=C383B778255613DFDB409D91DB221A6900000011 | apt-key add -'
+    [ $? -ne 0 ] && die "L4FAME GPG key installation failed"
+
+    ERRORS=0
+    for VERB in update ; do
+    	quiet $SUDO chroot $MNT /bin/sh -c "apt $VERB -y --force-yes"
+    	let ERRORS=${ERRORS}+$?
+    done
+    [ $ERRORS -ne 0 ] && die "Cannot refresh repo sources"
+
+    for P in 'linux-image-4.8.0-l4fame+' 'l4fame-node'; do
+    	quiet $SUDO chroot $MNT sh -c \
+	    "DEBIAN_FRONTEND=noninteractive apt-get -y --force-yes install '$P'"
+    	let ERRORS=${ERRORS}+$?
+    done
+    mount_image
+    return $ERRORS
 }
 
 ###########################################################################
@@ -294,7 +346,10 @@ function transmogrify_l4tm() {
 function manifest_template_image() {
     sep Creating VM system image $TEMPLATE from $MIRROR
 
-    if validate_template_image; then
+    validate_template_image
+    RET=$?
+    [ $RET -eq 255 ] && quiet $SUDO rm -f $TEMPLATE && RET=0
+    if [ $RET -eq 0 ]; then
     	yesno "Re-use existing $TEMPLATE"
 	[ $? -eq 0 ] && return 0
     fi
@@ -331,9 +386,9 @@ function manifest_template_image() {
     	die "Build of $TEMPLATE failed"
     fi
 
-    validate_template_image || die "Validation of $TEMPLATE failed"
+    validate_template_image || die "Validation of fresh $TEMPLATE failed"
 
-    transmogrify_l4tm
+    transmogrify_l4fame || die "Addition of L4FAME repo failed"
 
     return 0
 }
@@ -349,6 +404,9 @@ function emit_files() {
     $SUDO cp hello_${HOSTUSERBASE}.c $MNT/home/$HOSTUSERBASE
 
     echo $NEWHOST | $SUDO tee $MNT/etc/hostname >/dev/null
+    
+    echo "http_proxy=$PROXY" | $SUDO tee -a $MNT/etc/hostname >/dev/null
+
     echo 'nameserver	192.168.42.254' | \
     	$SUDO tee $MNT/etc/resolv.conf >/dev/null
 
@@ -356,14 +414,14 @@ function emit_files() {
 
     $SUDO tee $MNT/etc/hosts >/dev/null << EOHOSTS
 127.0.0.1	localhost
-127.1.0.1	NEWHOST
+127.1.0.1	$NEWHOST
 
 # The following lines are desirable for IPv6 capable hosts
 ::1     localhost ip6-localhost ip6-loopback
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 
-192.168.42.254	vmhost `hostname`
+192.168.42.254	torms vmhost `hostname`
 
 EOHOSTS
 
@@ -425,6 +483,7 @@ EODOIT
     for N in `seq $NODES`; do
 	NODE=$HOSTUSERBASE$N
 	D2=`printf "%02d" $N`
+	# This pattern is recognized by tm-lfs as the implicit node number
 	MAC="$OUI:${D2}:${D2}:${D2}"
 	echo "nohup \$QEMU -name $NODE \\"
 	echo "	-netdev bridge,id=$NETWORK,br=$NETWORK,helper=$QBH \\"
@@ -445,7 +504,9 @@ EODOIT
 
 [ $# -ne 1 -o "${1:0:1}" = '-' ] && die "usage: `basename $0` [ -h ] VMcount"
 typeset -ir NODES=$1	# will evaluate to zero if non-integer
+
 set -u
+
 [ "$NODES" -lt 1 -o "$NODES" -gt 40 ] && die "'$1' VMs is not in range 1-40"
 
 trap "rm -f debootstrap.log; exit 0" TERM QUIT INT HUP EXIT # always empty
