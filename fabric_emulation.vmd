@@ -20,12 +20,12 @@ boottype = ext2
 foreign =
 
 arch = amd64
-distribution = unstable
+distribution = testing
 
-package = aptitude,apt-utils,build-essential,curl,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,pciutils,psmisc,psutils,ssh,vim,wget
+package = aptitude,apt-utils,build-essential,ca-certificates,curl,gnupg,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,pciutils,psmisc,psutils,ssh,vim,wget
 custom-package =
 
-no-kernel = False
+no-kernel = True
 sudo = True
 
 enable-dhcp = True

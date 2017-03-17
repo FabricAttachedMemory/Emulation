@@ -57,6 +57,7 @@ function sep() {
 
 # Early calls (before SUDO is set up) may not make it into $LOG
 function die() {
+    mount_image		# release anything that may be mounted
     echo -e "Error: $*" >&2
     echo -e "\n$0 failed:\n$*\n" >> $LOG
     [ "$VERBOSE" ] && env | sort >> $LOG
@@ -145,7 +146,7 @@ function verify_host_environment() {
     export PATH="/bin:/usr/bin:/sbin:/usr/sbin"
 
     [ -x /bin/which -o -x /usr/bin/which ] || die "Missing command 'which'"
-    NEED="awk brctl grep qemu-img sudo virsh vmdebootstrap"
+    NEED="awk brctl grep losetup qemu-img sudo virsh vmdebootstrap"
     MISSING=
     for CMD in $NEED; do
 	quiet which $CMD || MISSING="$CMD $MISSING"
@@ -160,6 +161,10 @@ function verify_host_environment() {
 	[ "$MAYBE" ] && eval $MAYBE
 	SUDO_USER=${SUDO_USER:-root}
     fi
+
+    LOOPS=`$SUDO losetup -al | wc -l`
+    [ $LOOPS -gt 0 ] && die \
+    	'losetup -al shows active loopback mounts, please clear them'
 
     set -- `qemu-system-x86_64 -version`
     [ "$4" != "2.6.0" ] && die "qemu is not version 2.6.0"
@@ -282,12 +287,15 @@ function expose_proxy() {
     done
     if [ "$PROXY" ]; then	# override for this script
 	http_proxy=$PROXY
-	export http_proxy
+	https_proxy=`echo $PROXY | sed -e 's/http:/https:/'`
+	export http_proxy https_proxy
 	echo "http_proxy=$http_proxy (from override by PROXY=)"
 	return 0
     fi
     if [ "${http_proxy:-}" ]; then	# already there
 	echo "http_proxy=$http_proxy (existing environment)"
+	https_proxy=`echo $http_proxy | sed -e 's/http:/https:/'`
+	export http_proxy https_proxy
 	return 0
     fi
     echo "No proxy setting can be ascertained"
@@ -298,6 +306,12 @@ function expose_proxy() {
 # Add the packages for L4TM (Linux for The Machine) via the secondary,
 # partial repo of l4fame.  It was built with mini-dinstall so the
 # syntax in source.list looks a little funky.
+
+function install_one() {
+    quiet $SUDO chroot $MNT sh -c \
+	"DEBIAN_FRONTEND=noninteractive apt-get -y --force-yes install '$1'"
+    return $?
+}
 
 function transmogrify_l4fame() {
     sep "Extending template with L4FAME: updating sources..."
@@ -320,24 +334,29 @@ function transmogrify_l4fame() {
 
     echo "Adding packages..."	# Assumes wget came with vmdebootstrap
 
-    quiet $SUDO chroot $MNT sh -c \
-    	'wget -O - https://db.debian.org/fetchkey.cgi?fingerprint=C383B778255613DFDB409D91DB221A6900000011 | apt-key add -'
+    quiet $SUDO chroot $MNT /bin/bash -c \
+    	"'wget -O - https://db.debian.org/fetchkey.cgi?fingerprint=C383B778255613DFDB409D91DB221A6900000011 | apt-key add -'"
     [ $? -ne 0 ] && die "L4FAME GPG key installation failed"
 
-    ERRORS=0
-    for VERB in update ; do
-    	quiet $SUDO chroot $MNT /bin/sh -c "apt $VERB -y --force-yes"
-    	let ERRORS=${ERRORS}+$?
-    done
-    [ $ERRORS -ne 0 ] && die "Cannot refresh repo sources"
+    quiet $SUDO chroot $MNT apt-get update
+    [ $? -ne 0 ] && die "Cannot refresh repo sources and preferences"
 
-    for P in 'linux-image-4.8.0-l4fame+' 'l4fame-node'; do
-    	quiet $SUDO chroot $MNT sh -c \
-	    "DEBIAN_FRONTEND=noninteractive apt-get -y --force-yes install '$P'"
-    	let ERRORS=${ERRORS}+$?
-    done
+    # VMD config file specifies no-kernel = True.  L4FAME does not come
+    # with a linux-image-amd64 metapackage to lock the kernel down.  An
+    # apt-get update will probably blow this away.
+    install_one "linux-image-4.8.0-l4fame+"
+    [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
+
+    # quiet $SUDO chroot $MNT sh -c apt-mark hold "linux-image-$LIVERSION"
+    # [ $? -ne 0 ] && echo "Cannot hold L4FAME kernel version $LIVERSION"
+
+    # Installing a kernel read things from /proc and /sys that set up
+    # /etc/fstab, but it's for the host system.  Fix that.
+
+    echo "proc /proc proc defaults 0 0" > $MNT/etc/fstab
+
     mount_image
-    return $ERRORS
+    return 0
 }
 
 ###########################################################################
@@ -379,8 +398,8 @@ function manifest_template_image() {
     quiet $VMD $VAROPT --log=$LOG --image=$TEMPLATE \
     	--mirror=$MIRROR --owner=$SUDO_USER
     RET=$?
-    quiet $SUDO chown $SUDO_USER "/$ARTDIR/${HOSTUSERBASE}.*" 	# --owner bug
-    if [ $RET -ne 0 ]; then
+    quiet $SUDO chown $SUDO_USER "$ARTDIR/${HOSTUSERBASE}.*" 	# --owner bug
+    if [ $RET -ne 0 -o ! -f $TEMPLATE ]; then
 	BAD=`mount | grep '/dev/loop[[:digit:]]+p[[:digit:]]+'`
 	[ $BAD ] && echo "mount of $BAD may be a problem" | tee -a $LOG
     	die "Build of $TEMPLATE failed"
@@ -403,12 +422,12 @@ function emit_files() {
 
     $SUDO cp hello_${HOSTUSERBASE}.c $MNT/home/$HOSTUSERBASE
 
-    echo $NEWHOST | $SUDO tee $MNT/etc/hostname >/dev/null
+    quiet echo $NEWHOST | $SUDO tee $MNT/etc/hostname
     
-    echo "http_proxy=$PROXY" | $SUDO tee -a $MNT/etc/hostname >/dev/null
+    quiet echo "http_proxy=$PROXY" | $SUDO tee -a $MNT/etc/environment
 
-    echo 'nameserver	192.168.42.254' | \
-    	$SUDO tee $MNT/etc/resolv.conf >/dev/null
+    quiet echo 'nameserver	192.168.42.254' | \
+    	$SUDO tee $MNT/etc/resolv.conf
 
     #------------------------------------------------------------------
 
