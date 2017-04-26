@@ -20,12 +20,12 @@ boottype = ext2
 foreign =
 
 arch = amd64
-distribution = testing
+distribution = jessie
 
 package = aptitude,apt-utils,build-essential,ca-certificates,curl,gnupg,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,pciutils,psmisc,psutils,ssh,vim,wget
 custom-package =
 
-no-kernel = True
+no-kernel = False
 sudo = True
 
 enable-dhcp = True
@@ -33,8 +33,8 @@ root-password = aresquare
 lock-root-password = False
 
 customize = 
-hostname = fabricXX
-user = fabric/rocks
+hostname = nodeXX
+user = l4tm/rocks
 serial-console = False
 serial-console-command = /sbin/getty -L ttyS0 115200 vt100
 

@@ -36,15 +36,16 @@ export PROXY=${PROXY:-}		# Default: no proxy override
 export VERBOSE=${VERBOSE:-}	# Default: mostly quiet; "yes" overrides
 
 ###########################################################################
-# Hardcoded to match content in external config files
+# Hardcoded to match content in external config files.  If any of these
+# is zero length you will probably trash your host OS.  Bullets, gun, feet.
 
-HOSTUSERBASE=fabric
-PROJECT=${HOSTUSERBASE}_emulation
-LOG=$ARTDIR/$PROJECT.log
-NETWORK=${HOSTUSERBASE}_emul	# libvirt: occasional name length limits
-OUI="48:50:45"			# man ascii
-TEMPLATE=$ARTDIR/${HOSTUSERBASE}_template.img
-TARBALL=$ARTDIR/${HOSTUSERBASE}_template.tar
+typeset -r HOSTUSERBASE=node
+typeset -r PROJECT=${HOSTUSERBASE}_emulation
+typeset -r LOG=$ARTDIR/$PROJECT.log
+typeset -r NETWORK=${HOSTUSERBASE}_emul	# libvirt: occasional name length limits
+typeset -r OUI="48:50:45"			# man ascii
+typeset -r TEMPLATE=$ARTDIR/${HOSTUSERBASE}_template.img
+typeset -r TARBALL=$ARTDIR/${HOSTUSERBASE}_template.tar
 
 ###########################################################################
 # Helpers
@@ -222,7 +223,8 @@ function libvirt_bridge() {
 
 ###########################################################################
 
-MNT=/mnt/$PROJECT
+[ ! "$PROJECT" ] && die PROJECT is empty
+typeset -r MNT=/mnt/$PROJECT
 BINDFWD="/proc /sys /run /dev /dev/pts"
 BINDREV="`echo $BINDFWD | tr ' ' '\n' | tac`"
 
@@ -240,6 +242,7 @@ function mount_image() {
     [  $? -ne 0 ] && echo "Mount of $LOCALIMG failed" >&2 && return 1
 
     # bind mounts for grub-probe from update-initramfs, etc
+    return 0
     OKREV=
     for BIND in $BINDFWD; do
 	quiet $SUDO mkdir -p $MNT$BIND
@@ -309,7 +312,7 @@ function expose_proxy() {
 
 function install_one() {
     quiet $SUDO chroot $MNT sh -c \
-	"DEBIAN_FRONTEND=noninteractive apt-get -y --force-yes install '$1'"
+	"DEBIAN_FRONTEND=noninteractive apt-get --allow-unauthenticated -y --force-yes install '$1'"
     return $?
 }
 
@@ -341,11 +344,10 @@ function transmogrify_l4fame() {
     quiet $SUDO chroot $MNT apt-get update
     [ $? -ne 0 ] && die "Cannot refresh repo sources and preferences"
 
-    # VMD config file specifies no-kernel = True.  L4FAME does not come
-    # with a linux-image-amd64 metapackage to lock the kernel down.  An
-    # apt-get update will probably blow this away.
-    install_one "linux-image-4.8.0-l4fame+"
-    [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
+    # L4FAME does not come with a linux-image-amd64 metapackage to lock
+    # its kernel down.  An apt-get update will probably blow this away.
+    # install_one "linux-image-4.8.0-l4fame+"
+    # [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
 
     # quiet $SUDO chroot $MNT sh -c apt-mark hold "linux-image-$LIVERSION"
     # [ $? -ne 0 ] && echo "Cannot hold L4FAME kernel version $LIVERSION"
@@ -353,7 +355,7 @@ function transmogrify_l4fame() {
     # Installing a kernel read things from /proc and /sys that set up
     # /etc/fstab, but it's for the host system.  Fix that.
 
-    echo "proc /proc proc defaults 0 0" > $MNT/etc/fstab
+    echo "proc /proc proc defaults 0 0" | quiet $SUDO tee $MNT/etc/fstab
 
     mount_image
     return 0
@@ -417,6 +419,8 @@ function manifest_template_image() {
 
 function emit_files() {
     NEWHOST=$1
+    OCTETS123=192.168.42	# see fabric_emul.net.xml
+    TORMS=$OCTETS123.254
 
     # One-liners
 
@@ -426,7 +430,7 @@ function emit_files() {
     
     quiet echo "http_proxy=$PROXY" | $SUDO tee -a $MNT/etc/environment
 
-    quiet echo 'nameserver	192.168.42.254' | \
+    quiet echo "nameserver	$TORMS" | \
     	$SUDO tee $MNT/etc/resolv.conf
 
     #------------------------------------------------------------------
@@ -440,12 +444,12 @@ function emit_files() {
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 
-192.168.42.254	torms vmhost `hostname`
+$TORMS	torms vmhost `hostname`
 
 EOHOSTS
 
     for I in `seq 1 40`; do
-    	echo 192.168.42.$I "${HOSTUSERBASE}$I" | \
+    	echo $OCTETS123.$I "${HOSTUSERBASE}$I" | \
 		sudo tee $MNT/etc/hosts >/dev/null
     done
 
@@ -459,7 +463,7 @@ function clone_VMs()
 {
     sep Generating file system images for $NODES virtual machines
     for N in `seq $NODES`; do
-    	NEWHOST=${HOSTUSERBASE}`printf "%d" $N`
+    	NEWHOST=${HOSTUSERBASE}`printf "%02d" $N`
     	NEWIMG="$ARTDIR/$NEWHOST.img"
 	QCOW2="$ARTDIR/$NEWHOST.qcow2"
 	echo "Customize $NEWHOST..."
@@ -509,6 +513,7 @@ EODOIT
 	echo "	-device virtio-net,mac=$MAC,netdev=$NETWORK \\"
         echo "  --object memory-backend-file,size=$FAMSIZE,mem-path=$FAM,id=FAM,share=on \\"
         echo "  -device ivshmem-plain,memdev=FAM \\"
+        echo "  -vnc :$N \\"
 	echo "	\$NODISPLAY $ARTDIR/$NODE.qcow2 &"
 	echo
     done

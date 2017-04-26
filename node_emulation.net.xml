@@ -3,13 +3,13 @@ https://github.com/FabricAttachedMemory/Emulation
 virsh will net-define with a loooong name, but choke on net-start.
 -->
 <network>
-  <name>fabric_emul</name>
+  <name>node_emul</name>
   <forward mode='nat'>
     <nat>
       <port start='1024' end='65535'/>
     </nat>
   </forward>
-  <bridge name='fabric_emul' stp='off' delay='0'/>
+  <bridge name='node_emul' stp='off' delay='0'/>
   <mac address='52:54:48:50:45:fe'/>
   <dns>
   <host ip='192.168.42.1'><hostname>node01</hostname></host>
