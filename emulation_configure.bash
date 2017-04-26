@@ -42,8 +42,8 @@ export VERBOSE=${VERBOSE:-}	# Default: mostly quiet; "yes" overrides
 typeset -r HOSTUSERBASE=node
 typeset -r PROJECT=${HOSTUSERBASE}_emulation
 typeset -r LOG=$ARTDIR/$PROJECT.log
-typeset -r NETWORK=${HOSTUSERBASE}_emul	# libvirt: occasional name length limits
-typeset -r OUI="48:50:45"			# man ascii
+typeset -r NETWORK=${HOSTUSERBASE}_emul		# libvirt name length limits
+typeset -r HPEOUI="48:50:45"
 typeset -r TEMPLATE=$ARTDIR/${HOSTUSERBASE}_template.img
 typeset -r TARBALL=$ARTDIR/${HOSTUSERBASE}_template.tar
 
@@ -265,7 +265,7 @@ function mount_image() {
 function validate_template_image() {
     [ -f $TEMPLATE ] || return 1
     mount_image $TEMPLATE || return 255		# aka return -1
-    test -d $MNT/home/$HOSTUSERBASE
+    test -d $MNT/home/l4tm			# see node_emulation.vmd
     RET=$?
     mount_image
     return $RET
@@ -424,7 +424,7 @@ function emit_files() {
 
     # One-liners
 
-    $SUDO cp hello_${HOSTUSERBASE}.c $MNT/home/$HOSTUSERBASE
+    $SUDO cp hello_fabric.c $MNT/home/l4tm
 
     quiet echo $NEWHOST | $SUDO tee $MNT/etc/hostname
     
@@ -504,10 +504,10 @@ EODOIT
     exec 3>&1		# Save stdout before...
     exec >>$DOIT	# ...hijacking it
     for N in `seq $NODES`; do
-	NODE=$HOSTUSERBASE$N
 	D2=`printf "%02d" $N`
+	NODE=$HOSTUSERBASE$D2
 	# This pattern is recognized by tm-lfs as the implicit node number
-	MAC="$OUI:${D2}:${D2}:${D2}"
+	MAC="$HPEOUI:${D2}:${D2}:${D2}"
 	echo "nohup \$QEMU -name $NODE \\"
 	echo "	-netdev bridge,id=$NETWORK,br=$NETWORK,helper=$QBH \\"
 	echo "	-device virtio-net,mac=$MAC,netdev=$NETWORK \\"
