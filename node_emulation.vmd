@@ -22,7 +22,7 @@ foreign =
 arch = amd64
 distribution = jessie
 
-package = aptitude,apt-utils,build-essential,ca-certificates,curl,gnupg,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,pciutils,psmisc,psutils,ssh,vim,wget
+package = aptitude,apt-utils,build-essential,ca-certificates,curl,gnupg,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,nfs-common,pciutils,psmisc,psutils,ssh,vim,wget
 custom-package =
 
 no-kernel = False

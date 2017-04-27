@@ -242,7 +242,6 @@ function mount_image() {
     [  $? -ne 0 ] && echo "Mount of $LOCALIMG failed" >&2 && return 1
 
     # bind mounts for grub-probe from update-initramfs, etc
-    return 0
     OKREV=
     for BIND in $BINDFWD; do
 	quiet $SUDO mkdir -p $MNT$BIND
@@ -279,6 +278,20 @@ function validate_template_image() {
 # avoid a reported issue in the VMD variable.
 
 function expose_proxy() {
+    if [ "$PROXY" ]; then	# override for this script
+	[ "${PROXY:0:7}" != "http://" ] && PROXY="http://$PROXY"
+	http_proxy=$PROXY
+	https_proxy=`echo $PROXY | sed -e 's/http:/https:/'`
+	export http_proxy https_proxy PROXY
+	echo "http_proxy=$http_proxy (given by PROXY=)"
+	return 0
+    fi
+    if [ "${http_proxy:-}" ]; then	# already there
+	echo "http_proxy=$http_proxy (existing environment)"
+	https_proxy=`echo $http_proxy | sed -e 's/http:/https:/'`
+	export http_proxy https_proxy
+	return 0
+    fi
     for RC in $HOME/.wgetrc /etc/wgetrc; do
 	TMP=`grep '^[[:space:]]*http_proxy' $RC 2>/dev/null | sed 's/[[:space:]]//g'`
 	if [ "$TMP" ]; then
@@ -288,19 +301,6 @@ function expose_proxy() {
 	    return 0
 	fi
     done
-    if [ "$PROXY" ]; then	# override for this script
-	http_proxy=$PROXY
-	https_proxy=`echo $PROXY | sed -e 's/http:/https:/'`
-	export http_proxy https_proxy
-	echo "http_proxy=$http_proxy (from override by PROXY=)"
-	return 0
-    fi
-    if [ "${http_proxy:-}" ]; then	# already there
-	echo "http_proxy=$http_proxy (existing environment)"
-	https_proxy=`echo $http_proxy | sed -e 's/http:/https:/'`
-	export http_proxy https_proxy
-	return 0
-    fi
     echo "No proxy setting can be ascertained"
     return 0
 }
@@ -311,14 +311,16 @@ function expose_proxy() {
 # syntax in source.list looks a little funky.
 
 function install_one() {
-    quiet $SUDO chroot $MNT sh -c \
+    echo Installing $1
+    # quiet $SUDO chroot $MNT sh -c \
+    $SUDO chroot $MNT sh -c \
 	"DEBIAN_FRONTEND=noninteractive apt-get --allow-unauthenticated -y --force-yes install '$1'"
     return $?
 }
 
 function transmogrify_l4fame() {
-    sep "Extending template with L4FAME: updating sources..."
     mount_image $TEMPLATE || return 1
+    sep "Extending template with L4FAME: updating sources..."
     L4FAME='http://downloads.linux.hpe.com/repo/l4fame'
     SOURCES="$MNT/etc/apt/sources.list.d/l4fame.list"
     APTCONF="$MNT/etc/apt/apt.conf.d/00l4fame.conf"
@@ -335,27 +337,29 @@ function transmogrify_l4fame() {
     # N: See apt-secure(8) manpage for repository creation and user
     #    configuration details.
 
-    echo "Adding packages..."	# Assumes wget came with vmdebootstrap
-
+    echo "Adding L4FAME GPG key..."	# Assumes wget came with vmdebootstrap
     quiet $SUDO chroot $MNT /bin/bash -c \
     	"'wget -O - https://db.debian.org/fetchkey.cgi?fingerprint=C383B778255613DFDB409D91DB221A6900000011 | apt-key add -'"
     [ $? -ne 0 ] && die "L4FAME GPG key installation failed"
 
+    echo "Updating apt for L4FAME..."
     quiet $SUDO chroot $MNT apt-get update
     [ $? -ne 0 ] && die "Cannot refresh repo sources and preferences"
 
     # L4FAME does not come with a linux-image-amd64 metapackage to lock
     # its kernel down.  An apt-get update will probably blow this away.
-    # install_one "linux-image-4.8.0-l4fame+"
-    # [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
+    L4FAME_KERNEL="linux-image-4.8.0-l4fame+"	# Always use quotes.
+    install_one "$L4FAME_KERNEL"
+    [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
 
-    # quiet $SUDO chroot $MNT sh -c apt-mark hold "linux-image-$LIVERSION"
-    # [ $? -ne 0 ] && echo "Cannot hold L4FAME kernel version $LIVERSION"
+    quiet $SUDO chroot $MNT sh -c apt-mark hold "$L4FAME_KERNEL"
+    [ $? -ne 0 ] && echo "Cannot hold L4FAME kernel version $L4FAME_KERNEL"
 
-    # Installing a kernel read things from /proc and /sys that set up
-    # /etc/fstab, but it's for the host system.  Fix that.
-
-    echo "proc /proc proc defaults 0 0" | quiet $SUDO tee $MNT/etc/fstab
+    # Installing a kernel took info from /proc and /sys that set up
+    # /etc/fstab, but it's from the host system.  Fix that, along with
+    # other things.
+    
+    common_config_files
 
     mount_image
     return 0
@@ -374,8 +378,6 @@ function manifest_template_image() {
     	yesno "Re-use existing $TEMPLATE"
 	[ $? -eq 0 ] && return 0
     fi
-
-    expose_proxy
 
     CFG=$PROJECT.vmd	# local
 
@@ -409,16 +411,13 @@ function manifest_template_image() {
 
     validate_template_image || die "Validation of fresh $TEMPLATE failed"
 
-    transmogrify_l4fame || die "Addition of L4FAME repo failed"
-
     return 0
 }
 
 ###########################################################################
 # Helper for cloning into current image at $MNT
 
-function emit_files() {
-    NEWHOST=$1
+function common_config_files() {
     OCTETS123=192.168.42	# see fabric_emul.net.xml
     TORMS=$OCTETS123.254
 
@@ -426,18 +425,16 @@ function emit_files() {
 
     $SUDO cp hello_fabric.c $MNT/home/l4tm
 
-    quiet echo $NEWHOST | $SUDO tee $MNT/etc/hostname
+    quiet echo NEWHOST | $SUDO tee $MNT/etc/hostname
     
     quiet echo "http_proxy=$PROXY" | $SUDO tee -a $MNT/etc/environment
 
-    quiet echo "nameserver	$TORMS" | \
-    	$SUDO tee $MNT/etc/resolv.conf
-
     #------------------------------------------------------------------
+    ETCHOSTS=$MNT/etc/hosts
 
-    $SUDO tee $MNT/etc/hosts >/dev/null << EOHOSTS
+    $SUDO tee $ETCHOSTS >/dev/null << EOHOSTS
 127.0.0.1	localhost
-127.1.0.1	$NEWHOST
+127.1.0.1	NEWHOST
 
 # The following lines are desirable for IPv6 capable hosts
 ::1     localhost ip6-localhost ip6-loopback
@@ -450,8 +447,21 @@ EOHOSTS
 
     for I in `seq 1 40`; do
     	echo $OCTETS123.$I "${HOSTUSERBASE}$I" | \
-		sudo tee $MNT/etc/hosts >/dev/null
+		sudo tee -a $ETCHOSTS >/dev/null
     done
+
+    #------------------------------------------------------------------
+    RESOLVdotCONF=$MNT/etc/resolv.conf
+
+    echo "nameserver	$TORMS" | sudo tee $RESOLVdotCONF
+
+    #------------------------------------------------------------------
+    FSTAB=$MNT/etc/fstab
+
+    $SUDO tee $FSTAB << EOFSTAB
+proc		 /proc	proc	defaults	0 0 
+/dev/sda1	/	ext4	defaults	0 0
+EOFSTAB
 
     return 0
 }
@@ -469,8 +479,11 @@ function clone_VMs()
 	echo "Customize $NEWHOST..."
 	quiet cp $TEMPLATE $NEWIMG
 
+	# Fixup files
 	mount_image $NEWIMG || die "Cannot mount $NEWIMG"
-	emit_files $NEWHOST
+	for F in etc/hostname etc/hosts; do
+		sudo sed -e "s/NEWHOST/$NEWHOST/" $MNT/$F
+	done
 	mount_image
 
 	echo Converting $NEWIMG into $QCOW2
@@ -539,7 +552,11 @@ verify_host_environment
 
 libvirt_bridge
 
+expose_proxy
+
 manifest_template_image
+
+transmogrify_l4fame || die "Addition of L4FAME repo failed"
 
 clone_VMs
 
