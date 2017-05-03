@@ -43,9 +43,13 @@ typeset -r HOSTUSERBASE=node
 typeset -r PROJECT=${HOSTUSERBASE}_emulation
 typeset -r LOG=$ARTDIR/$PROJECT.log
 typeset -r NETWORK=${HOSTUSERBASE}_emul		# libvirt name length limits
-typeset -r HPEOUI="48:50:45"
+typeset -r HPEOUI="48:50:42"
 typeset -r TEMPLATE=$ARTDIR/${HOSTUSERBASE}_template.img
 typeset -r TARBALL=$ARTDIR/${HOSTUSERBASE}_template.tar
+
+export DEBIAN_FRONTEND=noninteractive	# preserved by chroot
+export DEBCONF_NONINTERACTIVE_SEEN=true
+export LC_ALL=C LANGUAGE=C LANG=C
 
 ###########################################################################
 # Helpers
@@ -314,9 +318,14 @@ function install_one() {
     echo Installing $1
     # quiet $SUDO chroot $MNT sh -c \
     $SUDO chroot $MNT sh -c \
-	"DEBIAN_FRONTEND=noninteractive apt-get --allow-unauthenticated -y --force-yes install '$1'"
+	"apt-get --allow-unauthenticated -y --force-yes install '$1'"
     return $?
 }
+
+###########################################################################
+# Add the repo, pull the packages.  Yes multistrap might do this all at
+# once but this script is evolutionary from a trusted base.  And then
+# it still needs to have grub installed.
 
 function transmogrify_l4fame() {
     mount_image $TEMPLATE || return 1
@@ -326,6 +335,8 @@ function transmogrify_l4fame() {
     APTCONF="$MNT/etc/apt/apt.conf.d/00l4fame.conf"
     echo "deb $L4FAME unstable/" | $SUDO tee $SOURCES 2>/dev/null
     echo "deb-src $L4FAME unstable/" | $SUDO tee -a $SOURCES 2>/dev/null
+
+    # FIXME: did vmdebootstrap do this?
     if [ "$PROXY" ]; then
     	echo "Acquire::http::Proxy \"$PROXY\";" | sudo tee $APTCONF >/dev/null
     fi
@@ -361,8 +372,21 @@ function transmogrify_l4fame() {
     
     common_config_files
 
+    # Most of the rest
+    install_one l4fame-node
+
+    # NOW this should work.  It really, really, really needs to be last.
+    RET=0
+    # install_one grub2
+    # $SUDO chroot $MNT update-grub		# Sets /boot/config/grub.cfg
+    # if [ -f $MNT/boot/grub/grub.cfg ]; then
+    	# $SUDO chroot $MNT grub-install /dev/loop0
+    # else
+    	# RET=1
+    # fi
+
     mount_image
-    return 0
+    return $RET 
 }
 
 ###########################################################################
@@ -410,6 +434,8 @@ function manifest_template_image() {
     fi
 
     validate_template_image || die "Validation of fresh $TEMPLATE failed"
+
+    transmogrify_l4fame || die "Addition of L4FAME repo failed"
 
     return 0
 }
@@ -555,8 +581,6 @@ libvirt_bridge
 expose_proxy
 
 manifest_template_image
-
-transmogrify_l4fame || die "Addition of L4FAME repo failed"
 
 clone_VMs
 

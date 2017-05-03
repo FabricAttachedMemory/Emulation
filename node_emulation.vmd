@@ -43,4 +43,4 @@ configure-apt = False
 
 extlinux = False
 mbr = False
-grub = True
+grub = False
