@@ -10,7 +10,7 @@ virsh will net-define with a loooong name, but choke on net-start.
     </nat>
   </forward>
   <bridge name='node_emul' stp='off' delay='0'/>
-  <mac address='52:54:48:50:45:fe'/>
+  <mac address='52:54:48:50:42:fe'/>
   <dns>
   <host ip='192.168.42.1'><hostname>node01</hostname></host>
   </dns>
@@ -18,46 +18,46 @@ virsh will net-define with a loooong name, but choke on net-start.
     <dhcp>
       <range start='192.168.42.101' end='192.168.42.120'/>
       <!-- Google for "virsh net-update" for another way to do this -->
-      <host mac='48:50:45:01:01:01' name='node01' ip='192.168.42.1'/>
-      <host mac='48:50:45:02:02:02' name='node02' ip='192.168.42.2'/>
-      <host mac='48:50:45:03:03:03' name='node03' ip='192.168.42.3'/>
-      <host mac='48:50:45:04:04:04' name='node04' ip='192.168.42.4'/>
-      <host mac='48:50:45:05:05:05' name='node05' ip='192.168.42.5'/>
-      <host mac='48:50:45:06:06:06' name='node06' ip='192.168.42.6'/>
-      <host mac='48:50:45:07:07:07' name='node07' ip='192.168.42.7'/>
-      <host mac='48:50:45:08:08:08' name='node08' ip='192.168.42.8'/>
-      <host mac='48:50:45:09:09:09' name='node09' ip='192.168.42.9'/>
-      <host mac='48:50:45:10:10:10' name='node10' ip='192.168.42.10'/>
-      <host mac='48:50:45:11:11:11' name='node11' ip='192.168.42.11'/>
-      <host mac='48:50:45:12:12:12' name='node12' ip='192.168.42.12'/>
-      <host mac='48:50:45:13:13:13' name='node13' ip='192.168.42.13'/>
-      <host mac='48:50:45:14:14:14' name='node14' ip='192.168.42.14'/>
-      <host mac='48:50:45:15:15:15' name='node15' ip='192.168.42.15'/>
-      <host mac='48:50:45:16:16:16' name='node16' ip='192.168.42.16'/>
-      <host mac='48:50:45:17:17:17' name='node17' ip='192.168.42.17'/>
-      <host mac='48:50:45:18:18:18' name='node18' ip='192.168.42.18'/>
-      <host mac='48:50:45:19:19:19' name='node19' ip='192.168.42.19'/>
-      <host mac='48:50:45:20:20:20' name='node20' ip='192.168.42.20'/>
-      <host mac='48:50:45:21:21:21' name='node21' ip='192.168.42.21'/>
-      <host mac='48:50:45:22:22:22' name='node22' ip='192.168.42.22'/>
-      <host mac='48:50:45:23:23:23' name='node23' ip='192.168.42.23'/>
-      <host mac='48:50:45:24:24:24' name='node24' ip='192.168.42.24'/>
-      <host mac='48:50:45:25:25:25' name='node25' ip='192.168.42.25'/>
-      <host mac='48:50:45:26:26:26' name='node26' ip='192.168.42.26'/>
-      <host mac='48:50:45:27:27:27' name='node27' ip='192.168.42.27'/>
-      <host mac='48:50:45:28:28:28' name='node28' ip='192.168.42.28'/>
-      <host mac='48:50:45:29:29:29' name='node29' ip='192.168.42.29'/>
-      <host mac='48:50:45:30:30:30' name='node30' ip='192.168.42.30'/>
-      <host mac='48:50:45:31:31:31' name='node31' ip='192.168.42.31'/>
-      <host mac='48:50:45:32:32:32' name='node32' ip='192.168.42.32'/>
-      <host mac='48:50:45:33:33:33' name='node33' ip='192.168.42.33'/>
-      <host mac='48:50:45:34:34:34' name='node34' ip='192.168.42.34'/>
-      <host mac='48:50:45:35:35:35' name='node35' ip='192.168.42.35'/>
-      <host mac='48:50:45:36:36:36' name='node36' ip='192.168.42.36'/>
-      <host mac='48:50:45:37:37:37' name='node37' ip='192.168.42.37'/>
-      <host mac='48:50:45:38:38:38' name='node38' ip='192.168.42.38'/>
-      <host mac='48:50:45:39:39:39' name='node39' ip='192.168.42.39'/>
-      <host mac='48:50:45:40:40:40' name='node40' ip='192.168.42.40'/>
+      <host mac='48:50:42:01:01:01' name='node01' ip='192.168.42.1'/>
+      <host mac='48:50:42:02:02:02' name='node02' ip='192.168.42.2'/>
+      <host mac='48:50:42:03:03:03' name='node03' ip='192.168.42.3'/>
+      <host mac='48:50:42:04:04:04' name='node04' ip='192.168.42.4'/>
+      <host mac='48:50:42:05:05:05' name='node05' ip='192.168.42.5'/>
+      <host mac='48:50:42:06:06:06' name='node06' ip='192.168.42.6'/>
+      <host mac='48:50:42:07:07:07' name='node07' ip='192.168.42.7'/>
+      <host mac='48:50:42:08:08:08' name='node08' ip='192.168.42.8'/>
+      <host mac='48:50:42:09:09:09' name='node09' ip='192.168.42.9'/>
+      <host mac='48:50:42:10:10:10' name='node10' ip='192.168.42.10'/>
+      <host mac='48:50:42:11:11:11' name='node11' ip='192.168.42.11'/>
+      <host mac='48:50:42:12:12:12' name='node12' ip='192.168.42.12'/>
+      <host mac='48:50:42:13:13:13' name='node13' ip='192.168.42.13'/>
+      <host mac='48:50:42:14:14:14' name='node14' ip='192.168.42.14'/>
+      <host mac='48:50:42:15:15:15' name='node15' ip='192.168.42.15'/>
+      <host mac='48:50:42:16:16:16' name='node16' ip='192.168.42.16'/>
+      <host mac='48:50:42:17:17:17' name='node17' ip='192.168.42.17'/>
+      <host mac='48:50:42:18:18:18' name='node18' ip='192.168.42.18'/>
+      <host mac='48:50:42:19:19:19' name='node19' ip='192.168.42.19'/>
+      <host mac='48:50:42:20:20:20' name='node20' ip='192.168.42.20'/>
+      <host mac='48:50:42:21:21:21' name='node21' ip='192.168.42.21'/>
+      <host mac='48:50:42:22:22:22' name='node22' ip='192.168.42.22'/>
+      <host mac='48:50:42:23:23:23' name='node23' ip='192.168.42.23'/>
+      <host mac='48:50:42:24:24:24' name='node24' ip='192.168.42.24'/>
+      <host mac='48:50:42:25:25:25' name='node25' ip='192.168.42.25'/>
+      <host mac='48:50:42:26:26:26' name='node26' ip='192.168.42.26'/>
+      <host mac='48:50:42:27:27:27' name='node27' ip='192.168.42.27'/>
+      <host mac='48:50:42:28:28:28' name='node28' ip='192.168.42.28'/>
+      <host mac='48:50:42:29:29:29' name='node29' ip='192.168.42.29'/>
+      <host mac='48:50:42:30:30:30' name='node30' ip='192.168.42.30'/>
+      <host mac='48:50:42:31:31:31' name='node31' ip='192.168.42.31'/>
+      <host mac='48:50:42:32:32:32' name='node32' ip='192.168.42.32'/>
+      <host mac='48:50:42:33:33:33' name='node33' ip='192.168.42.33'/>
+      <host mac='48:50:42:34:34:34' name='node34' ip='192.168.42.34'/>
+      <host mac='48:50:42:35:35:35' name='node35' ip='192.168.42.35'/>
+      <host mac='48:50:42:36:36:36' name='node36' ip='192.168.42.36'/>
+      <host mac='48:50:42:37:37:37' name='node37' ip='192.168.42.37'/>
+      <host mac='48:50:42:38:38:38' name='node38' ip='192.168.42.38'/>
+      <host mac='48:50:42:39:39:39' name='node39' ip='192.168.42.39'/>
+      <host mac='48:50:42:40:40:40' name='node40' ip='192.168.42.40'/>
     </dhcp>
   </ip>
 </network>
