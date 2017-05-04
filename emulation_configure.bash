@@ -226,26 +226,60 @@ function libvirt_bridge() {
 }
 
 ###########################################################################
+# Two nagging bugs kept /etc/kernel/postinst.d/initramfs-tools from working.
+# That calls update-initramfs and update-grub (as do other admin tools).
+# They all boil down to run-parts scripts in /etc/grub.d.
+# I had been directly using "mount -oloop,offset=1M "$LOCALIMG" $MNT"
+# whereas vmdebootstrap and my cmdline use kpartx.  The direct method
+# yields a root device of /dev/loop0, whereas kpartx root device is
+# /dev/mapper/loop0.  When grub-mkconfig is finally invoked,
+# /etc/grub.d/00_header: chain calls grub-probe a lot to finally find the
+#	image $TEMPLATE (/tmp/node_template.img).  Since that file doesn't
+#	exist in the image, grub-probe dies with "Cannot find canonical...".
+#	However the kpartx method gives up /dev/dm-X, so it's happy without
+#	spoofing the file.
+# /etc/grub.d/10_linux: exits early and grabs no kernels for
+#	/boot/grub/grub.cfg if the root device is of the form "/dev/loop".
+# /etc/grub.d/30_os-prober: package os-probe is not downloaded in these
+#	minimal debootstraps, but I don't care for this effort.
+# So using kpartx kills the two birds with one stone.
 
 [ ! "$PROJECT" ] && die PROJECT is empty
 typeset -r MNT=/mnt/$PROJECT
 BINDFWD="/proc /sys /run /dev /dev/pts"
 BINDREV="`echo $BINDFWD | tr ' ' '\n' | tac`"
+LAST_KPARTX=
 
 function mount_image() {
-    for BIND in $BINDREV; do quiet $SUDO umount $MNT$BIND; done
-    quiet $SUDO umount $MNT
-    if [ $# -eq 0 ]; then
+    if [ -d $MNT ]; then	# Always try to undo it
+    	for BIND in $BINDREV; do
+		[ -d $BIND ] && quiet $SUDO umount $MNT$BIND
+	done
+    	quiet $SUDO umount $MNT
+	[ "$LAST_KPARTX" ] && quiet $SUDO kpartx -d $LAST_KPARTX
+	LAST_KPARTX=
 	quiet $SUDO rmdir $MNT	# Leave no traces
-	return 0
     fi
+    [ $# -eq 0 ] && return 0
+    
+    # Now the fun begins.  Make /etc/grub.d/[00_header|10_linux] happy
     LOCALIMG="$*"
-    [ ! -f $LOCALIMG ] && return 1
+    [ ! -f $LOCALIMG ] && LAST_KPARTX= && return 1
     quiet $SUDO mkdir -p $MNT
-    quiet $SUDO mount -oloop,offset=1M "$LOCALIMG" $MNT
-    [  $? -ne 0 ] && echo "Mount of $LOCALIMG failed" >&2 && return 1
+    quiet $SUDO kpartx -as $LOCALIMG
+    [ $? -ne 0 ] && echo "kpartx of $LOCALIMG failed" >&2 && exit 1
+    LAST_KPARTX=$LOCALIMG
+    DEV=`losetup | awk -v mounted=$LAST_KPARTX '$0 ~ mounted {print $1}'`
+    MOUNTDEV=/dev/mapper/`basename $DEV`p1
+    quiet $SUDO mount $MOUNTDEV $MNT
+    if [ $? -ne 0 ]; then
+    	$SUDO kpartx -d $LAST_KPARTX
+	LAST_KPARTX=
+    	echo "mount of $LOCALIMG failed" >&2
+	exit 1
+    fi
 
-    # bind mounts for grub-probe from update-initramfs, etc
+    # bind mounts to make /etc/grub.d/XXX happy when they calls grub-probe
     OKREV=
     for BIND in $BINDFWD; do
 	quiet $SUDO mkdir -p $MNT$BIND
@@ -338,7 +372,7 @@ function transmogrify_l4fame() {
 
     # FIXME: did vmdebootstrap do this?
     if [ "$PROXY" ]; then
-    	echo "Acquire::http::Proxy \"$PROXY\";" | sudo tee $APTCONF >/dev/null
+    	echo "Acquire::http::Proxy \"$PROXY\";" | quiet $SUDO tee $APTCONF
     fi
 
     # Without a key, you get error message on upgrade:
@@ -358,15 +392,7 @@ function transmogrify_l4fame() {
     quiet $SUDO chroot $MNT apt-get update
     [ $? -ne 0 ] && die "Cannot refresh repo sources and preferences"
   
-    # You can install grub earlier (in vmd) where it's done at the very end
-    # or do it manually here (like you'd need to do with multistrap).  grub
-    # has /etc/kernel.d/postinst hooks the kernel (for initramfs, etc) which
-    # heads toward grub.efi and /boot/config/grub.cfg.  "update-grub" =>
-    # grub-mkconfig which run-parts /etc/grub.d/*, starting with 00_header
-    # which chain-calls grub-probe.  That eventually finds /dev/loop0 and
-    # extracts the name $TEMPLATE from behind it.  It finally does grub-probe
-    # on THAT file (as the device) which doesn't exist, unless...
-    $SUDO touch $MNT/$TEMPLATE	# ...it does.
+    # $SUDO touch $MNT/$TEMPLATE	# SPOOF no longer needed
 
     # L4FAME does not come with a linux-image-amd64 metapackage to lock
     # its kernel down.  An apt-get update will probably blow this away.
@@ -379,31 +405,15 @@ function transmogrify_l4fame() {
 
     # Installing a kernel took info from /proc and /sys that set up
     # /etc/fstab, but it's from the host system.  Fix that, along with
-    # other things.
+    # other things.  Then finish off L4FAME.
     
     common_config_files
 
-    # Most of the rest
     install_one l4fame-node
-
-    # NOW this should work.  It really, really, really needs to be last.
-    RET=0
-    $SUDO chroot $MNT env
-    if /bin/false; then
-    install_one grub2
-
-    $SUDO chroot $MNT update-grub
     RET=$?
-    if [ $RET -eq 0 ]; then
-    	if [ -f $MNT/boot/grub/grub.cfg ]; then
-    		$SUDO chroot $MNT # grub-install /dev/loop0
-		RET=$?
-    	else
-    		RET=1
-    	fi
-    fi
-    fi
+
     mount_image
+
     return $RET 
 }
 
@@ -441,7 +451,7 @@ function manifest_template_image() {
     # interferes with subsequent runs, but doesn't complain properly.
     # Later versions of vmdebootstrap don't take both --image and --tarball.
 
-    $SUDO touch $MNT/$TEMPLATE	# ...it exists.
+    # $SUDO touch $MNT/$TEMPLATE	# SPOOF no longer needed
 
     quiet $VMD $VAROPT --log=$LOG --image=$TEMPLATE \
     	--mirror=$MIRROR --owner=$SUDO_USER
@@ -471,7 +481,8 @@ function common_config_files() {
 
     # $SUDO cp hello_fabric.c $MNT/home/l4tm
 
-    echo $NEWHOST | quiet $SUDO tee $MNT/etc/hostname
+    # Yes, the word "NEWHOST", which will be sedited later
+    echo NEWHOST | quiet $SUDO tee $MNT/etc/hostname
     
     echo "http_proxy=$PROXY" | quiet $SUDO tee -a $MNT/etc/environment
 
@@ -493,13 +504,13 @@ EOHOSTS
 
     for I in `seq 1 40`; do
     	echo $OCTETS123.$I "${HOSTUSERBASE}$I" | \
-		sudo tee -a $ETCHOSTS >/dev/null
+		quiet $SUDO tee -a $ETCHOSTS
     done
 
     #------------------------------------------------------------------
     RESOLVdotCONF=$MNT/etc/resolv.conf
 
-    echo "nameserver	$TORMS" | sudo tee $RESOLVdotCONF
+    echo "nameserver	$TORMS" | quiet $SUDO tee $RESOLVdotCONF
 
     #------------------------------------------------------------------
     FSTAB=$MNT/etc/fstab
@@ -528,7 +539,7 @@ function clone_VMs()
 	# Fixup files
 	mount_image $NEWIMG || die "Cannot mount $NEWIMG"
 	for F in etc/hostname etc/hosts; do
-		sudo sed -e "s/NEWHOST/$NEWHOST/" $MNT/$F
+		quiet $SUDO sed -e "s/NEWHOST/$NEWHOST/" $MNT/$F
 	done
 	mount_image
 
@@ -550,7 +561,6 @@ function emit_invocations() {
 #!/bin/bash
 
 # Invoke VMs created by `basename $0`
-# `date`
 
 # SUDO="sudo -E"	# Uncomment this if your system needs it
 
