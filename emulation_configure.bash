@@ -330,7 +330,7 @@ function expose_proxy() {
 	return 0
     fi
     for RC in $HOME/.wgetrc /etc/wgetrc; do
-	TMP=`grep '^[[:space:]]*http_proxy' $RC 2>/dev/null | sed 's/[[:space:]]//g'`
+	TMP=`grep '^[[:space:]]*http_proxy' $RC 2>/dev/null | sed -e 's/[[:space:]]//g'`
 	if [ "$TMP" ]; then
 	    eval "$TMP"
 	    export http_proxy
@@ -539,7 +539,8 @@ function clone_VMs()
 	# Fixup files
 	mount_image $NEWIMG || die "Cannot mount $NEWIMG"
 	for F in etc/hostname etc/hosts; do
-		quiet $SUDO sed -e "s/NEWHOST/$NEWHOST/" $MNT/$F
+		TARGET=$MNT/$F
+		quiet $SUDO sed -ie "s/NEWHOST/$NEWHOST/" $TARGET
 	done
 	mount_image
 
