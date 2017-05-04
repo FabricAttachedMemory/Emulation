@@ -266,14 +266,13 @@ function mount_image() {
 # Tri-state return value
 
 function validate_template_image() {
-    [ -f $TEMPLATE ] || return 1
-    mount_image $TEMPLATE || return 255		# aka return -1
+    [ -f $TEMPLATE ] || return 1		# File not found
+    mount_image $TEMPLATE || return 255		# aka return -1: corrupt
     test -d $MNT/home/l4tm			# see node_emulation.vmd
-    RET=$?
+    RET=$?					# Incomplete
     mount_image
     return $RET
 }
-
 
 ###########################################################################
 # vmdebootstrap uses debootstrap which uses wget to retrieve packages.
@@ -312,12 +311,13 @@ function expose_proxy() {
 ###########################################################################
 # Add the packages for L4TM (Linux for The Machine) via the secondary,
 # partial repo of l4fame.  It was built with mini-dinstall so the
-# syntax in source.list looks a little funky.
+# syntax in sources.list.d looks a little funky.
 
 function install_one() {
     echo Installing $1
     # quiet $SUDO chroot $MNT sh -c \
-    $SUDO chroot $MNT sh -c \
+    # $SUDO chroot $MNT sh -c \
+    quiet $SUDO chroot $MNT \
 	"apt-get --allow-unauthenticated -y --force-yes install '$1'"
     return $?
 }
@@ -348,7 +348,8 @@ function transmogrify_l4fame() {
     # N: See apt-secure(8) manpage for repository creation and user
     #    configuration details.
 
-    echo "Adding L4FAME GPG key..."	# Assumes wget came with vmdebootstrap
+    # Assumes wget came with vmdebootstrap.  bash is for the pipe.
+    echo "Adding L4FAME GPG key..."
     quiet $SUDO chroot $MNT /bin/bash -c \
     	"'wget -O - https://db.debian.org/fetchkey.cgi?fingerprint=C383B778255613DFDB409D91DB221A6900000011 | apt-key add -'"
     [ $? -ne 0 ] && die "L4FAME GPG key installation failed"
@@ -356,6 +357,16 @@ function transmogrify_l4fame() {
     echo "Updating apt for L4FAME..."
     quiet $SUDO chroot $MNT apt-get update
     [ $? -ne 0 ] && die "Cannot refresh repo sources and preferences"
+  
+    # You can install grub earlier (in vmd) where it's done at the very end
+    # or do it manually here (like you'd need to do with multistrap).  grub
+    # has /etc/kernel.d/postinst hooks the kernel (for initramfs, etc) which
+    # heads toward grub.efi and /boot/config/grub.cfg.  "update-grub" =>
+    # grub-mkconfig which run-parts /etc/grub.d/*, starting with 00_header
+    # which chain-calls grub-probe.  That eventually finds /dev/loop0 and
+    # extracts the name $TEMPLATE from behind it.  It finally does grub-probe
+    # on THAT file (as the device) which doesn't exist, unless...
+    $SUDO touch $MNT/$TEMPLATE	# ...it does.
 
     # L4FAME does not come with a linux-image-amd64 metapackage to lock
     # its kernel down.  An apt-get update will probably blow this away.
@@ -363,7 +374,7 @@ function transmogrify_l4fame() {
     install_one "$L4FAME_KERNEL"
     [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
 
-    quiet $SUDO chroot $MNT sh -c apt-mark hold "$L4FAME_KERNEL"
+    quiet $SUDO chroot $MNT apt-mark hold "$L4FAME_KERNEL"
     [ $? -ne 0 ] && echo "Cannot hold L4FAME kernel version $L4FAME_KERNEL"
 
     # Installing a kernel took info from /proc and /sys that set up
@@ -377,14 +388,21 @@ function transmogrify_l4fame() {
 
     # NOW this should work.  It really, really, really needs to be last.
     RET=0
-    # install_one grub2
-    # $SUDO chroot $MNT update-grub		# Sets /boot/config/grub.cfg
-    # if [ -f $MNT/boot/grub/grub.cfg ]; then
-    	# $SUDO chroot $MNT grub-install /dev/loop0
-    # else
-    	# RET=1
-    # fi
+    $SUDO chroot $MNT env
+    if /bin/false; then
+    install_one grub2
 
+    $SUDO chroot $MNT update-grub
+    RET=$?
+    if [ $RET -eq 0 ]; then
+    	if [ -f $MNT/boot/grub/grub.cfg ]; then
+    		$SUDO chroot $MNT # grub-install /dev/loop0
+		RET=$?
+    	else
+    		RET=1
+    	fi
+    fi
+    fi
     mount_image
     return $RET 
 }
@@ -417,11 +435,13 @@ function manifest_template_image() {
     fi
 
     # vmdebootstrap calls debootstrap which makes a loopback mount for
-    # the image under construction, like /dev/mapper/loop0p1/.  It should
+    # the image under construction, like /dev/mapper/loop0p1.  It should
     # be possible to construct a status bar based on df of that mount.
     # NOTE: killing the script here may leave a dangling mount that
     # interferes with subsequent runs, but doesn't complain properly.
     # Later versions of vmdebootstrap don't take both --image and --tarball.
+
+    $SUDO touch $MNT/$TEMPLATE	# ...it exists.
 
     quiet $VMD $VAROPT --log=$LOG --image=$TEMPLATE \
     	--mirror=$MIRROR --owner=$SUDO_USER
@@ -449,11 +469,11 @@ function common_config_files() {
 
     # One-liners
 
-    $SUDO cp hello_fabric.c $MNT/home/l4tm
+    # $SUDO cp hello_fabric.c $MNT/home/l4tm
 
-    quiet echo NEWHOST | $SUDO tee $MNT/etc/hostname
+    echo $NEWHOST | quiet $SUDO tee $MNT/etc/hostname
     
-    quiet echo "http_proxy=$PROXY" | $SUDO tee -a $MNT/etc/environment
+    echo "http_proxy=$PROXY" | quiet $SUDO tee -a $MNT/etc/environment
 
     #------------------------------------------------------------------
     ETCHOSTS=$MNT/etc/hosts

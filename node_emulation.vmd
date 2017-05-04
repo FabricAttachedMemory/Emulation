@@ -34,7 +34,7 @@ lock-root-password = False
 
 customize = 
 hostname = nodeXX
-user = l4tm/rocks
+user = l4tm/iforgot
 serial-console = False
 serial-console-command = /sbin/getty -L ttyS0 115200 vt100
 
@@ -43,4 +43,4 @@ configure-apt = False
 
 extlinux = False
 mbr = False
-grub = False
+grub = True
