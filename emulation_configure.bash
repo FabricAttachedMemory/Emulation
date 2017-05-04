@@ -367,8 +367,8 @@ function transmogrify_l4fame() {
     L4FAME='http://downloads.linux.hpe.com/repo/l4fame'
     SOURCES="$MNT/etc/apt/sources.list.d/l4fame.list"
     APTCONF="$MNT/etc/apt/apt.conf.d/00l4fame.conf"
-    echo "deb $L4FAME unstable/" | $SUDO tee $SOURCES 2>/dev/null
-    echo "deb-src $L4FAME unstable/" | $SUDO tee -a $SOURCES 2>/dev/null
+    echo "deb $L4FAME unstable/" | quiet $SUDO tee $SOURCES
+    echo "deb-src $L4FAME unstable/" | quiet $SUDO tee -a $SOURCES
 
     # FIXME: did vmdebootstrap do this?
     if [ "$PROXY" ]; then
@@ -392,8 +392,6 @@ function transmogrify_l4fame() {
     quiet $SUDO chroot $MNT apt-get update
     [ $? -ne 0 ] && die "Cannot refresh repo sources and preferences"
   
-    # $SUDO touch $MNT/$TEMPLATE	# SPOOF no longer needed
-
     # L4FAME does not come with a linux-image-amd64 metapackage to lock
     # its kernel down.  An apt-get update will probably blow this away.
     L4FAME_KERNEL="linux-image-4.8.0-l4fame+"	# Always use quotes.
@@ -441,7 +439,7 @@ function manifest_template_image() {
     if [ $? -eq 0 ]; then
     	VAROPT='--variant=buildd'
     else
-    	VAROPT='--debootstrapopts=variant=buildd'	# per KP
+    	VAROPT='--debootstrapopts=variant=buildd'
     fi
 
     # vmdebootstrap calls debootstrap which makes a loopback mount for
@@ -451,9 +449,7 @@ function manifest_template_image() {
     # interferes with subsequent runs, but doesn't complain properly.
     # Later versions of vmdebootstrap don't take both --image and --tarball.
 
-    # $SUDO touch $MNT/$TEMPLATE	# SPOOF no longer needed
-
-    quiet $VMD $VAROPT --log=$LOG --image=$TEMPLATE \
+    $VMD $VAROPT --log=$LOG --image=$TEMPLATE \
     	--mirror=$MIRROR --owner=$SUDO_USER
     RET=$?
     quiet $SUDO chown $SUDO_USER "$ARTDIR/${HOSTUSERBASE}.*" 	# --owner bug
@@ -515,7 +511,7 @@ EOHOSTS
     #------------------------------------------------------------------
     FSTAB=$MNT/etc/fstab
 
-    $SUDO tee $FSTAB << EOFSTAB
+    quiet $SUDO tee $FSTAB << EOFSTAB
 proc		 /proc	proc	defaults	0 0 
 /dev/sda1	/	ext4	defaults	0 0
 EOFSTAB
