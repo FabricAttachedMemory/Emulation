@@ -29,7 +29,7 @@ no-kernel = False
 sudo = True
 
 enable-dhcp = True
-root-password = aresquare
+root-password = iforgot
 lock-root-password = False
 
 customize = 
