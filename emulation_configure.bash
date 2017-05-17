@@ -538,6 +538,11 @@ function clone_VMs()
 		TARGET=$MNT/$F
 		quiet $SUDO sed -ie "s/NEWHOST/$NEWHOST/" $TARGET
 	done
+
+	DOTSSH=/home/l4tm/.ssh
+	quiet $SUDO mkdir -m 700 $MNT/$DOTSSH
+	quiet $SUDO cp id_rsa.nophrase.pub $MNT/$DOTSSH/authorized_keys
+	quiet $SUDO chroot $MNT chown -R l4tm:l4tm $DOTSSH
 	mount_image
 
 	echo Converting $NEWIMG into $QCOW2
