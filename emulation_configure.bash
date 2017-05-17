@@ -512,8 +512,9 @@ EOHOSTS
     FSTAB=$MNT/etc/fstab
 
     quiet $SUDO tee $FSTAB << EOFSTAB
-proc		 /proc	proc	defaults	0 0 
+proc		/proc	proc	defaults	0 0 
 /dev/sda1	/	ext4	defaults	0 0
+torms:/srv	/srv	nfs	defaults	0 0
 EOFSTAB
 
     return 0
@@ -543,6 +544,9 @@ function clone_VMs()
 	quiet $SUDO mkdir -m 700 $MNT/$DOTSSH
 	quiet $SUDO cp id_rsa.nophrase.pub $MNT/$DOTSSH/authorized_keys
 	quiet $SUDO chroot $MNT chown -R l4tm:l4tm $DOTSSH
+
+    	quiet $SUDO chroot systemctl enable tm-lfs
+
 	mount_image
 
 	echo Converting $NEWIMG into $QCOW2
