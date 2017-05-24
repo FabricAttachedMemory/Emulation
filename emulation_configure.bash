@@ -25,7 +25,7 @@
 
 export ARTDIR=${ARTDIR:-/tmp}	# ARTifact DIRectory
 
-export FAM=${FAM:-/dev/shm/GlobalNVM}
+export FAMPATH=${FAMPATH:-/dev/shm/GlobalNVM}
 
 export FAMSIZE=${FAMSIZE:-4G}
 
@@ -537,7 +537,7 @@ function clone_VMs()
 	mount_image $NEWIMG || die "Cannot mount $NEWIMG"
 	for F in etc/hostname etc/hosts; do
 		TARGET=$MNT/$F
-		quiet $SUDO sed -ie "s/NEWHOST/$NEWHOST/" $TARGET
+		quiet $SUDO sed -i -e "s/NEWHOST/$NEWHOST/" $TARGET
 	done
 
 	DOTSSH=/home/l4tm/.ssh
@@ -586,7 +586,7 @@ EODOIT
 	echo "nohup \$QEMU -name $NODE \\"
 	echo "	-netdev bridge,id=$NETWORK,br=$NETWORK,helper=$QBH \\"
 	echo "	-device virtio-net,mac=$MAC,netdev=$NETWORK \\"
-        echo "  --object memory-backend-file,size=$FAMSIZE,mem-path=$FAM,id=FAM,share=on \\"
+        echo "  --object memory-backend-file,size=$FAMSIZE,mem-path=$FAMPATH,id=FAM,share=on \\"
         echo "  -device ivshmem-plain,memdev=FAM \\"
         echo "  -vnc :$N \\"
 	echo "	\$NODISPLAY $ARTDIR/$NODE.qcow2 &"
@@ -595,6 +595,29 @@ EODOIT
     exec 1>&3		# Restore stdout
     exec 3>&-
     chmod +x $DOIT
+    return 0
+}
+
+###########################################################################
+# Create virt-manager files
+
+function emit_XML() {
+    for N in `seq $NODES`; do
+	D2=`printf "%02d" $N`
+	NODE=$HOSTUSERBASE$D2
+	# This pattern is recognized by tm-lfs as the implicit node number
+	MACADDR="$HPEOUI:${D2}:${D2}:${D2}"
+	QCOW=$ARTDIR/$NODE.qcow2
+	XML=$ARTDIR/$NODE.xml
+
+	cp node_template.xml $XML
+	sed -i -e "s!NODEXX!$NODE!" $XML
+	sed -i -e "s!QCOWXX!$QCOW!" $XML
+	sed -i -e "s!MACADDRXX!$MACADDR!" $XML
+	sed -i -e "s!FAMPATH!$FAMPATH!" $XML
+	sed -i -e "s!FAMSIZE!$FAMSIZE!" $XML
+	
+    done
     return 0
 }
 
@@ -621,5 +644,6 @@ manifest_template_image
 clone_VMs
 
 emit_invocations
+emit_XML
 
 exit 0
