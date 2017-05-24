@@ -545,7 +545,7 @@ function clone_VMs()
 	quiet $SUDO cp id_rsa.nophrase.pub $MNT/$DOTSSH/authorized_keys
 	quiet $SUDO chroot $MNT chown -R l4tm:l4tm $DOTSSH
 
-    	quiet $SUDO chroot systemctl enable tm-lfs
+    	quiet $SUDO chroot $MNT systemctl enable tm-lfs
 
 	mount_image
 
@@ -559,7 +559,7 @@ function clone_VMs()
 ###########################################################################
 # When in doubt, "qemu-system-x86_64 -device ?" or "-device virtio-net,?"
 
-function emit_invocations() {
+function emit_qemu_invocations() {
     DOIT=$ARTDIR/$PROJECT.bash
     sep "\nVM invocation script is $DOIT"
 
@@ -601,7 +601,8 @@ EODOIT
 ###########################################################################
 # Create virt-manager files
 
-function emit_XML() {
+function emit_libvirt_XML() {
+    sep "\nvirsh/virt-manager files nodeXX.xml are in $ARTDIR"
     for N in `seq $NODES`; do
 	D2=`printf "%02d" $N`
 	NODE=$HOSTUSERBASE$D2
@@ -643,7 +644,8 @@ manifest_template_image
 
 clone_VMs
 
-emit_invocations
-emit_XML
+# emit_qemu_invocations
+
+emit_libvirt_XML
 
 exit 0
