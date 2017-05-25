@@ -21,6 +21,7 @@ Several environment variables can be set (or exported first) that affect the ope
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | ARTDIR | All resulting artifacts are located here.  A size check is done to ensure there's enough space.  If that check fails, either free up space or set ARTDIR to another directory. | /tmp |
+| FAMPATH | The "backing store" for the Global NVM seen by the nodes; it's the file used by QEMU IVSHMEM. | not set |
 | MIRROR | The script builds VM images by pulling packages from Debian repo. | http://ftp.us.debian.org/debian |
 | PROXY | Any proxy needed to reach $MIRROR. | not set |
 | VERBOSE |Normally the script is fairly "quiet", only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $ARTDIR/fabric_emulation.log | not set |
