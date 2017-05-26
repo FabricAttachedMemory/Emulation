@@ -20,17 +20,17 @@ Several environment variables can be set (or exported first) that affect the ope
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| ARTDIR | All resulting artifacts are located here.  A size check is done to ensure there's enough space.  If that check fails, either free up space or set ARTDIR to another directory. | /tmp |
-| FAMPATH | The "backing store" for the Global NVM seen by the nodes; it's the file used by QEMU IVSHMEM. | not set |
-| MIRROR | The script builds VM images by pulling packages from Debian repo. | http://ftp.us.debian.org/debian |
-| PROXY | Any proxy needed to reach $MIRROR. | not set |
-| VERBOSE |Normally the script is fairly "quiet", only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $ARTDIR/fabric_emulation.log | not set |
+| FAME_FAM | The "backing store" for the Global NVM seen by the nodes; it's the file used by QEMU IVSHMEM. | REQUIRED! |
+| FAME_MIRROR | The script builds VM images by pulling packages from Debian repo. | http://ftp.us.debian.org/debian |
+| FAME_OUTDIR | All resulting artifacts are located here.  A size check is done to ensure there's enough space.  If that check fails, either free up space or set FAME_OUTDIR to another directory. | /tmp |
+| FAME_PROXY | Any proxy needed to reach $FAME_MIRROR. | $http_proxy |
+| FAME_VERBOSE |Normally the script is fairly "quiet", only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $ARTDIR/fabric_emulation.log | unset |
 
 These variables must be seen in the script's environment so use the "-E"
 command if invoking sudo directly:
 
-    $ export MIRROR=http://a.b.com/debian
-    $ export VERBOSE=yes
+    $ export FAME_MIRROR=http://a.b.com/debian
+    $ export FAME_VERBOSE=yes
     $ emulation_configure.bash n
 
 works, as well as
@@ -39,40 +39,40 @@ works, as well as
 
 or
 
-    $ sudo VERBOSE=yes MIRROR=http://a.b.com/debian emulation_configure.bash n
+    $ sudo FAME_VERBOSE=yes FAME_MIRROR=http://a.b.com/debian emulation_configure.bash n
 
 ## Behind the scenes
 
 emulation_configure.bash performs the following actions:
 
 1. Validates the host environment, starting with execution as root or sudo.  While it doesn't explicitly limit its execution to Debian Jessie, it does check for commands that may not exist on other Debian variants.  Other things are checked like file space and internal consistency.
-1. Creates a libvirt virtual bridged network called "fabric_emul" which
+1. Creates a libvirt virtual bridged network called "node_emul" which
   2. Provides DHCP services via dnsmasq
   2. Links all emulated VM "nodes" together on an intranet (ala The Machine)
   2. Uses NAT to connect the intranet to the host system's external network.
 1. Uses vmdebootstrap(1m) to create a new disk image (file) that serves as the template for each VM's file system.  This is the step that pulls from the Debian mirror (see MIRROR and PROXY above).  Most of the configuration is specified in the file fabric_emulation.vmd, with several options handled in the shell script.  This template file is a raw disk image yielding about eight gigabytes of file system space for a VM, more than enough for a non-graphical Linux development system.
-1. Copy the template image for each VM and customize it (hostname, /etc/hosts, /etc/resolv.conf, root and user "fabric").  The raw image is then converted to a qcow2 (copy-on-write) which shrinks its size down to 800 megabytes.  That may grow with use.
-1. Emits an invocation script which may be used to start all VMs.  That script is in $ARTDIR/fabric_emulation.bash.  The qemu commands contain stanzas necessary to create the IVSHMEM connectivity (see below).
+1. Copy the template image for each VM and customize it (hostname, /etc/hosts, /etc/resolv.conf, root and user "l4tm").  The raw image is then converted to a qcow2 (copy-on-write) which shrinks its size down to 800 megabytes.  That may grow with use.
+1. Emits libvirt XML node definition files and scripts to load/start/stop/unload them from libvirt/virt-manager.  Those files are all in $FAME_OUTDIR.  The XML files contain stanzas necessary to create the IVSHMEM connectivity (see below).
 
 ## Artifacts
 
-The following files will be created in $ARTDIR after a successful run.  Note: ARTDIR was originally TMPDIR, but that variable is suppressed by glibc on setuid programs which breaks under certain uses of sudo.
+The following files will be created in $FAME_OUTDIR after a successful run.  Note: FAME_OUTDIR was originally TMPDIR, but that variable is suppressed by glibc on setuid programs which breaks under certain uses of sudo.
 
 | Artifact | Description |
 |----------|-------------|
-| fabricN.qcow2 | The disk image file for VM "node" N |
-| fabric_emulation.bash | Shell script to start all VM "nodes" |
-| fabric_emulation.log | Trace file of all steps by emulation_configure.bash |
-| fabric_template.img |	Pristine (un-customized) file-system image of vmdebootstrap.  This is a partitioned disk image and is not needed to run the VMs. |
-| fabric_template.tar |	Tarball of the root filesystem on fabric_template.img |
+| nodeXX.qcow2 | The disk image file for VM "node" XX |
+| nodeXX.xml | The "domain" defintion file for "node" XX, loaded into virt-manager via "virsh define nodeXX.xml" |
+| node_emulation.log | Trace file of all steps by emulation_configure.bash |
+| node_template.img |	Pristine (un-customized) file-system image of vmdebootstrap.  This is a partitioned disk image and is not needed to run the VMs. |
+| virsh_nodes.sh | Shell script to to "define", "start", "destroy" (stop), and "undefine" all VM "nodes" |
 
 ## VM Guest Environment
 
-The root password is "aresquare".  A single normal user also exists, "fabric", with password "rocks", and is enabled as a full "sudo" account.
+The root password is "iforgot".  A single normal user also exists, "l4tm", with password "iforgot", and is enabled as a full "sudo" account.  The l4tm user is configured with a phraseless ssh keypair expressed in id_rsa.nophrase (the private key).
 
-Networking should be active on eth0.  /etc/hosts is set up for "nodes" fabric1 through fabric4.  The host system is known by its own hostname and the name "vmhost".   sshd is set up on every node for inter-node access as well as access from the host.
+Networking should be active on eth0.  /etc/hosts is set up for "nodes" node01 through nodeXX.  The host system is known by its own hostname and the name "torms".   sshd is set up on every node for inter-node access as well as access from the host.
 
-"apt" and "aptitude" are configured to allow package installation and updates per the MIRROR and PROXY settings above.
+"apt" and "aptitude" are configured to allow package installation and updates per the FAME_MIRROR and FAME_PROXY settings above.
 
 A reasonable development environment (gcc, make) is available.  This can be used to compile the simple "hello world" program found in the home directory of user "fabric".
 
@@ -92,7 +92,7 @@ Fabric-Attached Memory Emulation is achieved via the stanza
 
 On the VM side, this creates a pseudo-PCI device with a memory base address register (BAR) of size 1024 megabytes (one gigabyte).  It can be seen in detail via "lspci -vv".  This is presented to the VM kernel as "live", unmapped physical address space.
 
-The VM "physical" address space is backed on the host by a POSIX shared memory object.  This object is visible on the host in the file /dev/shm/fabric_em.  Anything done to the address space on the VM is reflected in the file on the host, and vice verse.
+The VM "physical" address space is backed on the host the file $FAME_FAM.  This file must exist before invoking emulation_configure.bash, and its size must be a power of two.  Anything done to the address space on the VM is reflected in the file on the host, and vice verse.
 
 Finally, all VMs (i.e, "nodes") are started with the same IVSHMEM stanza.  Thus they all share that pseudo-physical memory space.  That is the essence of fabric-attached memory emulation.
 
@@ -104,6 +104,6 @@ As the IVSHMEM address space is physical and unmapped, a kernel driver is needed
 
 If a user-space program on the VM opens and memory-maps this file via mmap(2), memory accesses go to the pseudo-physical address space shared across all VMs.  This file can only be memory-mapped on the VM; read and write is not implemented.To simplify the program, the resource2 file is symlinked at /mnt/fabric_emulation.
 
-A simple demo program is copied to the home directory of the "fabric" user on each VM.  Compile it on one node and run it (using sudo to execute).  Then go to the host VM and "cat /dev/shmem/fabric_em".  You should see uname output from the node.  Those same contents will appear to all other nodes, too (if you write a program that loads from the shared space instead of storing to it).
+A simple demo program is copied to the home directory of the "fabric" user on each VM.  Compile it on one node and run it (using sudo to execute).  Then go to the host VM and "cat $FAME_FAM".  You should see uname output from the node.  Those same contents will appear to all other nodes, too (if you write a program that loads from the shared space instead of storing to it).
 
-What about syncing between nodes?  That is left as an exercise to the reader, as it would be in any setup involving a shared global resource.  Have fun :-)
+What about syncing between nodes?  For that you need the Librarian, which will be explained shortly...
