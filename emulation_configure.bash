@@ -64,13 +64,13 @@ function die() {
     mount_image		# release anything that may be mounted
     echo -e "Error: $*" >&2
     echo -e "\n$0 failed:\n$*\n" >> $LOG
-    [ "$VERBOSE" ] && env | sort >> $LOG
+    [ "$FAME_VERBOSE" ] && env | sort >> $LOG
     echo -e "\n$LOG may have more details" >&2
     exit 1
 }
 
 function quiet() {
-    if [ "$VERBOSE" ]; then
+    if [ "$FAME_VERBOSE" ]; then
     	echo $*
     	eval $*
     else
@@ -631,8 +631,9 @@ function emit_libvirt_XML() {
 	sed -i -e "s!MACADDRXX!$MACADDR!" $XML
 	sed -i -e "s!FAME_FAM!$FAME_FAM!" $XML
 	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $XML
-	
     done
+    cp node_virsh.sh $FAME_OUTDIR
+    echo "Change directory to $FAME_OUTDIR and run node_virsh.sh"
     return 0
 }
 
