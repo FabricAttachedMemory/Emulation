@@ -20,20 +20,19 @@
 # See http://github.com/FabricAttachedMemory for more details.
 
 # Set these in your environment to override the following defaults.
-# Note: ARTDIR was originally TMPDIR, but that variable is suppressed
+# Note: FAME_OUTDIR was originally TMPDIR, but that variable is suppressed
 # by glibc on setuid programs which breaks under certain uses of sudo.
 
-export ARTDIR=${ARTDIR:-/tmp}	# ARTifact DIRectory
+FAME_OUTDIR=${FAME_OUTDIR:-/tmp}
+export FAME_OUTDIR=`dirname "$FAME_OUTDIR/xxx"`	# chomps a trailing slash
 
-export FAMPATH=${FAMPATH:-/dev/shm/GlobalNVM}
+export FAME_FAM=${FAME_FAM:-}
 
-export FAMSIZE=${FAMSIZE:-4G}
+export FAME_MIRROR=${FAME_MIRROR:-http://ftp.us.debian.org/debian}
 
-export MIRROR=${MIRROR:-http://ftp.us.debian.org/debian}
+export FAME_PROXY=${FAME_PROXY:-}	# Default: $http_proxy or none
 
-export PROXY=${PROXY:-}		# Default: no proxy override
-
-export VERBOSE=${VERBOSE:-}	# Default: mostly quiet; "yes" overrides
+export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 
 ###########################################################################
 # Hardcoded to match content in external config files.  If any of these
@@ -41,11 +40,11 @@ export VERBOSE=${VERBOSE:-}	# Default: mostly quiet; "yes" overrides
 
 typeset -r HOSTUSERBASE=node
 typeset -r PROJECT=${HOSTUSERBASE}_emulation
-typeset -r LOG=$ARTDIR/$PROJECT.log
+typeset -r LOG=$FAME_OUTDIR/$PROJECT.log
 typeset -r NETWORK=${HOSTUSERBASE}_emul		# libvirt name length limits
 typeset -r HPEOUI="48:50:42"
-typeset -r TEMPLATE=$ARTDIR/${HOSTUSERBASE}_template.img
-typeset -r TARBALL=$ARTDIR/${HOSTUSERBASE}_template.tar
+typeset -r TEMPLATE=$FAME_OUTDIR/${HOSTUSERBASE}_template.img
+typeset -r TARBALL=$FAME_OUTDIR/${HOSTUSERBASE}_template.tar
 
 export DEBIAN_FRONTEND=noninteractive	# preserved by chroot
 export DEBCONF_NONINTERACTIVE_SEEN=true
@@ -167,6 +166,16 @@ function verify_host_environment() {
 	SUDO_USER=${SUDO_USER:-root}
     fi
 
+    # Got FAM?
+    [ -z "$FAME_FAM" ] && die "FAME_FAM variable must be specified"
+    [ ! -f "$FAME_FAM" ] && die "$FAME_FAM not found"
+    T=`stat -c %s "$FAME_FAM"`
+    let TMP=$T/1024/1024/1024
+    export FAME_SIZE=${TMP}G
+    quiet echo "$FAME_FAM = $FAME_SIZE"
+    [ $TMP -lt 4 ] && die "$FAME_FAM is less than 1G"
+    [ $TMP -gt 256 ] && echo "$FAME_FAM is greater than 256G"	# QEMU limit
+
     LOOPS=`$SUDO losetup -al | wc -l`
     [ $LOOPS -gt 0 ] && die \
     	'losetup -al shows active loopback mounts, please clear them'
@@ -176,11 +185,11 @@ function verify_host_environment() {
     verify_QBH
 
     # Space for 2 raw image files, the tarball, all qcows, and slop
-    [ ! -d "$ARTDIR" ] && die "$ARTDIR is not a directory"
+    [ ! -d "$FAME_OUTDIR" ] && die "$FAME_OUTDIR is not a directory"
     let GNEEDED=16+1+$NODES+1
     let KNEEDED=1000000*$GNEEDED
-    TMPFREE=`df "$ARTDIR" | awk '/^\// {print $4}'`
-    [ $TMPFREE -lt $KNEEDED ] && die "$ARTDIR has less than $GNEEDED G free"
+    TMPFREE=`df "$FAME_OUTDIR" | awk '/^\// {print $4}'`
+    [ $TMPFREE -lt $KNEEDED ] && die "$FAME_OUTDIR has less than $GNEEDED G free"
 
     return 0
 }
@@ -315,12 +324,12 @@ function validate_template_image() {
 # avoid a reported issue in the VMD variable.
 
 function expose_proxy() {
-    if [ "$PROXY" ]; then	# override for this script
-	[ "${PROXY:0:7}" != "http://" ] && PROXY="http://$PROXY"
-	http_proxy=$PROXY
-	https_proxy=`echo $PROXY | sed -e 's/http:/https:/'`
-	export http_proxy https_proxy PROXY
-	echo "http_proxy=$http_proxy (given by PROXY=)"
+    if [ "$FAME_PROXY" ]; then	# override for this script
+	[ "${FAME_PROXY:0:7}" != "http://" ] && FAME_PROXY="http://$FAME_PROXY"
+	http_proxy=$FAME_PROXY
+	https_proxy=`echo $FAME_PROXY | sed -e 's/http:/https:/'`
+	export http_proxy https_proxy FAME_PROXY
+	echo "http_proxy=$http_proxy (given by FAME_PROXY=)"
 	return 0
     fi
     if [ "${http_proxy:-}" ]; then	# already there
@@ -371,8 +380,8 @@ function transmogrify_l4fame() {
     echo "deb-src $L4FAME unstable/" | quiet $SUDO tee -a $SOURCES
 
     # FIXME: did vmdebootstrap do this?
-    if [ "$PROXY" ]; then
-    	echo "Acquire::http::Proxy \"$PROXY\";" | quiet $SUDO tee $APTCONF
+    if [ "$FAME_PROXY" ]; then
+    	echo "Acquire::http::Proxy \"$FAME_PROXY\";" | quiet $SUDO tee $APTCONF
     fi
 
     # Without a key, you get error message on upgrade:
@@ -419,16 +428,16 @@ function transmogrify_l4fame() {
 # This takes about six minutes if the mirror is unproxied on a LAN.  YMMV.
 
 function manifest_template_image() {
-    sep Creating VM system image $TEMPLATE from $MIRROR
+    sep Handle VM golden image $TEMPLATE
 
     validate_template_image
     RET=$?
     [ $RET -eq 255 ] && quiet $SUDO rm -f $TEMPLATE && RET=0
     if [ $RET -eq 0 ]; then
     	yesno "Re-use existing $TEMPLATE"
-	[ $? -eq 0 ] && return 0
+	[ $? -eq 0 ] && echo "Keep existing $TEMPLATE" && return 0
     fi
-
+    echo Creating new $TEMPLATE from $FAME_MIRROR
     CFG=$PROJECT.vmd	# local
 
     VMD="$SUDO vmdebootstrap --no-default-configs --config=$CFG"
@@ -450,9 +459,9 @@ function manifest_template_image() {
     # Later versions of vmdebootstrap don't take both --image and --tarball.
 
     $VMD $VAROPT --log=$LOG --image=$TEMPLATE \
-    	--mirror=$MIRROR --owner=$SUDO_USER
+    	--mirror=$FAME_MIRROR --owner=$SUDO_USER
     RET=$?
-    quiet $SUDO chown $SUDO_USER "$ARTDIR/${HOSTUSERBASE}.*" 	# --owner bug
+    quiet $SUDO chown $SUDO_USER "$FAME_OUTDIR/${HOSTUSERBASE}.*" 	# --owner bug
     if [ $RET -ne 0 -o ! -f $TEMPLATE ]; then
 	BAD=`mount | grep '/dev/loop[[:digit:]]+p[[:digit:]]+'`
 	[ $BAD ] && echo "mount of $BAD may be a problem" | tee -a $LOG
@@ -480,7 +489,7 @@ function common_config_files() {
     # Yes, the word "NEWHOST", which will be sedited later
     echo NEWHOST | quiet $SUDO tee $MNT/etc/hostname
     
-    echo "http_proxy=$PROXY" | quiet $SUDO tee -a $MNT/etc/environment
+    echo "http_proxy=$FAME_PROXY" | quiet $SUDO tee -a $MNT/etc/environment
 
     #------------------------------------------------------------------
     ETCHOSTS=$MNT/etc/hosts
@@ -498,7 +507,9 @@ $TORMS	torms vmhost `hostname`
 
 EOHOSTS
 
-    for I in `seq 1 40`; do
+    # Not really needed with dnsmasq doing DNS but helps when nodes are down
+    # as dnsmasq omits them.
+    for I in `seq $NODES`; do
     	echo $OCTETS123.$I "${HOSTUSERBASE}$I" | \
 		quiet $SUDO tee -a $ETCHOSTS
     done
@@ -526,11 +537,16 @@ EOFSTAB
 function clone_VMs()
 {
     sep Generating file system images for $NODES virtual machines
-    for N in `seq $NODES`; do
-    	NEWHOST=${HOSTUSERBASE}`printf "%02d" $N`
-    	NEWIMG="$ARTDIR/$NEWHOST.img"
-	QCOW2="$ARTDIR/$NEWHOST.qcow2"
+    for N2 in `seq -f '%02.0f' $NODES`; do
+    	NEWHOST=$HOSTUSERBASE$N2
+	QCOW2="$FAME_OUTDIR/$NEWHOST.qcow2"
+	if [ -f $QCOW2 ]; then
+	    yesno "Re-use $QCOW2"
+	    [ $? -eq 0 ] && echo "Keep existing $QCOW2" && continue
+	fi
+		
 	echo "Customize $NEWHOST..."
+    	NEWIMG="$FAME_OUTDIR/$NEWHOST.img"
 	quiet cp $TEMPLATE $NEWIMG
 
 	# Fixup files
@@ -560,7 +576,7 @@ function clone_VMs()
 # When in doubt, "qemu-system-x86_64 -device ?" or "-device virtio-net,?"
 
 function emit_qemu_invocations() {
-    DOIT=$ARTDIR/$PROJECT.bash
+    DOIT=$FAME_OUTDIR/$PROJECT.bash
     sep "\nVM invocation script is $DOIT"
 
     cat >$DOIT <<EODOIT
@@ -578,18 +594,17 @@ EODOIT
 
     exec 3>&1		# Save stdout before...
     exec >>$DOIT	# ...hijacking it
-    for N in `seq $NODES`; do
-	D2=`printf "%02d" $N`
-	NODE=$HOSTUSERBASE$D2
+    for N2 in `seq -f '%02.0f' $NODES`; do
+	NODE=$HOSTUSERBASE$N2
 	# This pattern is recognized by tm-lfs as the implicit node number
-	MAC="$HPEOUI:${D2}:${D2}:${D2}"
+	MAC="$HPEOUI:${N2}:${N2}:${N2}"
 	echo "nohup \$QEMU -name $NODE \\"
 	echo "	-netdev bridge,id=$NETWORK,br=$NETWORK,helper=$QBH \\"
 	echo "	-device virtio-net,mac=$MAC,netdev=$NETWORK \\"
-        echo "  --object memory-backend-file,size=$FAMSIZE,mem-path=$FAMPATH,id=FAM,share=on \\"
+        echo "  --object memory-backend-file,size=$FAME_SIZE,mem-path=$FAME_FAM,id=FAM,share=on \\"
         echo "  -device ivshmem-plain,memdev=FAM \\"
         echo "  -vnc :$N \\"
-	echo "	\$NODISPLAY $ARTDIR/$NODE.qcow2 &"
+	echo "	\$NODISPLAY $FAME_OUTDIR/$NODE.qcow2 &"
 	echo
     done
     exec 1>&3		# Restore stdout
@@ -602,21 +617,20 @@ EODOIT
 # Create virt-manager files
 
 function emit_libvirt_XML() {
-    sep "\nvirsh/virt-manager files nodeXX.xml are in $ARTDIR"
-    for N in `seq $NODES`; do
-	D2=`printf "%02d" $N`
-	NODE=$HOSTUSERBASE$D2
+    sep "\nvirsh/virt-manager files nodeXX.xml are in $FAME_OUTDIR"
+    for N2 in `seq -f '%02.0f' $NODES`; do
+	NODE=$HOSTUSERBASE$N2
 	# This pattern is recognized by tm-lfs as the implicit node number
-	MACADDR="$HPEOUI:${D2}:${D2}:${D2}"
-	QCOW=$ARTDIR/$NODE.qcow2
-	XML=$ARTDIR/$NODE.xml
+	MACADDR="$HPEOUI:${N2}:${N2}:${N2}"
+	QCOW=$FAME_OUTDIR/$NODE.qcow2
+	XML=$FAME_OUTDIR/$NODE.xml
 
 	cp node_template.xml $XML
 	sed -i -e "s!NODEXX!$NODE!" $XML
 	sed -i -e "s!QCOWXX!$QCOW!" $XML
 	sed -i -e "s!MACADDRXX!$MACADDR!" $XML
-	sed -i -e "s!FAMPATH!$FAMPATH!" $XML
-	sed -i -e "s!FAMSIZE!$FAMSIZE!" $XML
+	sed -i -e "s!FAME_FAM!$FAME_FAM!" $XML
+	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $XML
 	
     done
     return 0

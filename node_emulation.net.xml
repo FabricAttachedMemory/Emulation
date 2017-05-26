@@ -11,13 +11,11 @@ virsh will net-define with a loooong name, but choke on net-start.
   </forward>
   <bridge name='node_emul' stp='off' delay='0'/>
   <mac address='52:54:48:50:42:fe'/>
-  <dns>
-  <host ip='192.168.42.1'><hostname>node01</hostname></host>
-  </dns>
   <ip address='192.168.42.254' netmask='255.255.255.0'>
     <dhcp>
-      <range start='192.168.42.101' end='192.168.42.120'/>
-      <!-- Google for "virsh net-update" for another way to do this -->
+      <!-- Google for "virsh net-update" for another way to do this.
+           Obscure bug: if you use a range, it's length determines the
+	   number of hosts below that actually get handled. -->
       <host mac='48:50:42:01:01:01' name='node01' ip='192.168.42.1'/>
       <host mac='48:50:42:02:02:02' name='node02' ip='192.168.42.2'/>
       <host mac='48:50:42:03:03:03' name='node03' ip='192.168.42.3'/>
