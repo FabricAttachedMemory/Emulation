@@ -26,11 +26,11 @@
 FAME_OUTDIR=${FAME_OUTDIR:-/tmp}
 export FAME_OUTDIR=`dirname "$FAME_OUTDIR/xxx"`	# chomps a trailing slash
 
-export FAME_FAM=${FAME_FAM:-}
+export FAME_FAM=${FAME_FAM:-}			# blank will throw an erro
 
 export FAME_MIRROR=${FAME_MIRROR:-http://ftp.us.debian.org/debian}
 
-export FAME_PROXY=${FAME_PROXY:-}	# Default: $http_proxy or none
+export FAME_PROXY=${FAME_PROXY:-$http_proxy}
 
 export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 
@@ -321,22 +321,20 @@ function validate_template_image() {
 ###########################################################################
 # vmdebootstrap uses debootstrap which uses wget to retrieve packages.
 # wget obeys (lower case) "http_proxy" but can be overridden by 
-# or $HOME/.wgetrc or /etc/wgetrc.  Try to help; export http_proxy to
+# $HOME/.wgetrc or /etc/wgetrc.  Try to help; export http_proxy to
 # avoid a reported issue in the VMD variable.
 
 function expose_proxy() {
-    if [ "$FAME_PROXY" ]; then	# override for this script
+    if [ "$FAME_PROXY" ]; then	# may have come from http_proxy originally
+    	if [ "${http_proxy:-}" ]; then
+	    echo "http_proxy=$http_proxy (existing environment)"
+	else
+	    echo "http_proxy=$FAME_PROXY (from FAME_PROXY)"
+	fi
 	[ "${FAME_PROXY:0:7}" != "http://" ] && FAME_PROXY="http://$FAME_PROXY"
 	http_proxy=$FAME_PROXY
 	https_proxy=`echo $FAME_PROXY | sed -e 's/http:/https:/'`
 	export http_proxy https_proxy FAME_PROXY
-	echo "http_proxy=$http_proxy (given by FAME_PROXY=)"
-	return 0
-    fi
-    if [ "${http_proxy:-}" ]; then	# already there
-	echo "http_proxy=$http_proxy (existing environment)"
-	https_proxy=`echo $http_proxy | sed -e 's/http:/https:/'`
-	export http_proxy https_proxy
 	return 0
     fi
     for RC in $HOME/.wgetrc /etc/wgetrc; do
@@ -376,7 +374,7 @@ function transmogrify_l4fame() {
     sep "Extending template with L4FAME: updating sources..."
     L4FAME='http://downloads.linux.hpe.com/repo/l4fame'
     SOURCES="$MNT/etc/apt/sources.list.d/l4fame.list"
-    APTCONF="$MNT/etc/apt/apt.conf.d/00l4fame.conf"
+    APTCONF="$MNT/etc/apt/apt.conf.d/00FAME.conf"
     echo "deb $L4FAME unstable/" | quiet $SUDO tee $SOURCES
     echo "deb-src $L4FAME unstable/" | quiet $SUDO tee -a $SOURCES
 
@@ -491,6 +489,13 @@ function common_config_files() {
     echo NEWHOST | quiet $SUDO tee $MNT/etc/hostname
     
     echo "http_proxy=$FAME_PROXY" | quiet $SUDO tee -a $MNT/etc/environment
+
+    #------------------------------------------------------------------
+    SUDOER=$MNT/etc/sudoers.d/l4tm_phraseless
+
+    echo $SUDOER
+
+    echo "l4tm	ALL=(ALL:ALL) NOPASSWD: ALL" | quiet $SUDO tee $SUDOER
 
     #------------------------------------------------------------------
     ETCHOSTS=$MNT/etc/hosts
@@ -639,14 +644,21 @@ function emit_libvirt_XML() {
 }
 
 ###########################################################################
-# MAIN
+# MAIN - do a few things before set -u
 
-[ $# -ne 1 -o "${1:0:1}" = '-' ] && die "usage: `basename $0` [ -h ] VMcount"
+if [ $# -ne 1 -o "${1:0:1}" = '-' ]; then
+	FAME_FAM=${FAME_FAM:-"NEEDS TO BE SET!"}
+	echo "Environment:"
+	echo "http_proxy=$http_proxy"
+	env | grep FAME_ | sort
+	echo -e "\nusage: `basename $0` [ -h ] VMcount"
+	exit 0
+fi
 typeset -ir NODES=$1	# will evaluate to zero if non-integer
 
 set -u
 
-[ "$NODES" -lt 1 -o "$NODES" -gt 40 ] && die "'$1' VMs is not in range 1-40"
+[ "$NODES" -lt 1 -o "$NODES" -gt 40 ] && die "VM count is not in range 1-40"
 
 trap "rm -f debootstrap.log; exit 0" TERM QUIT INT HUP EXIT # always empty
 

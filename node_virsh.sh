@@ -14,12 +14,12 @@ VIRSH='sudo virsh'
 case "$DIRECTIVE" in
 
 define)
-	for XML in $NODESXML; do echo $VIRSH define $XML; done
+	for XML in $NODESXML; do $VIRSH define $XML; done
 	exit 0
 	;;
 
 start)
-	for DOM in $NODESDOM; do echo $VIRSH start $DOM; done
+	for DOM in $NODESDOM; do $VIRSH start $DOM; done
 	exit 0
 	;;
 
@@ -29,12 +29,12 @@ status)
 	;;
 
 stop|destroy)
-	for DOM in $NODESDOM; do echo $VIRSH destroy $DOM; done
+	for DOM in $NODESDOM; do $VIRSH destroy $DOM; done
 	exit 0
 	;;
 
 undefine)
-	for DOM in $NODESDOM; do echo $VIRSH undefine $DOM; done
+	for DOM in $NODESDOM; do $VIRSH undefine $DOM; done
 	exit 0
 	;;
 
