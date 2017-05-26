@@ -129,7 +129,7 @@ EOMSG
 # vmdebootstrap requires root, but first insure other commands exist.
 # Ass-u-me coreutils is installed.
 
-SUDO="sudo -E"
+[ `id -u` -ne 0 ] && SUDO="sudo -E" || SUDO=
 
 function verify_host_environment() {
     sep Verifying host environment
@@ -150,7 +150,8 @@ function verify_host_environment() {
     export PATH="/bin:/usr/bin:/sbin:/usr/sbin"
 
     [ -x /bin/which -o -x /usr/bin/which ] || die "Missing command 'which'"
-    NEED="awk brctl grep losetup qemu-img sudo virsh vmdebootstrap"
+    NEED="awk brctl grep losetup qemu-img qemu-system-x86_64 virsh vmdebootstrap"
+    [ "$SUDO" ] && NEED="$NEED sudo"
     MISSING=
     for CMD in $NEED; do
 	quiet which $CMD || MISSING="$CMD $MISSING"
