@@ -9,7 +9,7 @@ set -u
 NODESXML=`ls node*.xml`
 NODESDOM=`echo $NODESXML | sed 's/\.xml//g'`
 
-VIRSH='sudo virsh'
+[ `id -u` = 0 ] && VIRSH="virsh" || VIRSH='sudo virsh'
 
 case "$DIRECTIVE" in
 
