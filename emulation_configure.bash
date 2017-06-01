@@ -174,7 +174,7 @@ function verify_host_environment() {
     let TMP=$T/1024/1024/1024
     export FAME_SIZE=${TMP}G
     quiet echo "$FAME_FAM = $FAME_SIZE"
-    [ $TMP -lt 4 ] && die "$FAME_FAM is less than 1G"
+    [ $TMP -lt 1 ] && die "$FAME_FAM is less than 1G"
     [ $TMP -gt 256 ] && echo "$FAME_FAM is greater than 256G"	# QEMU limit
 
     LOOPS=`$SUDO losetup -al | wc -l`
