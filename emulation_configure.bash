@@ -256,8 +256,8 @@ function libvirt_bridge() {
 
 [ ! "$PROJECT" ] && die PROJECT is empty
 typeset -r MNT=/mnt/$PROJECT
-BINDFWD="/proc /sys /run /dev /dev/pts"
-BINDREV="`echo $BINDFWD | tr ' ' '\n' | tac`"
+typeset -r BINDFWD="/proc /sys /run /dev /dev/pts"
+typeset -r BINDREV="`echo $BINDFWD | tr ' ' '\n' | tac`"
 LAST_KPARTX=
 
 function mount_image() {
@@ -562,10 +562,12 @@ function clone_VMs()
 		quiet $SUDO sed -i -e "s/NEWHOST/$NEWHOST/" $TARGET
 	done
 
-	DOTSSH=/home/l4tm/.ssh
+	DOTSSH=home/l4tm/.ssh
 	quiet $SUDO mkdir -m 700 $MNT/$DOTSSH
 	quiet $SUDO cp id_rsa.nophrase.pub $MNT/$DOTSSH/authorized_keys
-	quiet $SUDO chroot $MNT chown -R l4tm:l4tm $DOTSSH
+	# The "l4tm" user in the chroot might be different from the host.
+	# FIXME but this is a safe assumption on a fresh vmdebootstrap.
+	quiet $SUDO chown -R 1000:1000 $MNT/$DOTSSH
 
     	quiet $SUDO chroot $MNT systemctl enable tm-lfs
 
