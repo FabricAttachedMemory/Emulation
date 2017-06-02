@@ -443,7 +443,7 @@ function manifest_template_image() {
 
     # Does this vintage of vmdeboostrap eat "variant" or "debootstrapopts"?
 
-    $VMD --dump-config | grep -q '^variant ='
+    eval $VMD --dump-config | grep -q '^variant ='
     if [ $? -eq 0 ]; then
     	VAROPT='--variant=buildd'
     else
