@@ -41,6 +41,12 @@ or
 
     $ sudo FAME_VERBOSE=yes FAME_MIRROR=http://a.b.com/debian emulation_configure.bash n
 
+Note: *$TMPDIR* is a "reserved" by the OS environment variable that will be cleaned out by *glibc* when you run *sudo -E*,
+therefore it will not be picked up by the program ([link](http://serverfault.com/questions/478741/sudo-does-not-preserve-tmpdir)). If you want to use *$TMPDIR* you should run it as follows:
+
+    $ sudo -E TMPDIR=/path/to/folder/ VERBOSE=yes MIRRORA=your/debian/mirror/ emulation_configure.bash n
+    
+
 ## Behind the scenes
 
 emulation_configure.bash performs the following actions:
