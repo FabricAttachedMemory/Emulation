@@ -26,6 +26,10 @@
 FAME_OUTDIR=${FAME_OUTDIR:-/tmp}
 export FAME_OUTDIR=`dirname "$FAME_OUTDIR/xxx"`	# chomps a trailing slash
 
+export FAME_VCPUS=${FAME_VCPUS:-2}		# No idiot checks yet
+
+export FAME_VDRAM=${FAME_VDRAM:-786432}
+
 export FAME_FAM=${FAME_FAM:-}			# blank will throw an erro
 
 export FAME_MIRROR=${FAME_MIRROR:-http://ftp.us.debian.org/debian}
@@ -166,6 +170,14 @@ function verify_host_environment() {
 	[ "$MAYBE" ] && eval $MAYBE
 	SUDO_USER=${SUDO_USER:-root}
     fi
+
+    # Got RAM/DRAM for the CPU?  Earlier QEMU had trouble booting this
+    # environment in less than this space, could have been page tables
+    # for larger IVSHMEM.  FIXME: force KiB values, verify against FAM_SIZE.
+    [ $FAME_DRAM -lt 786432 ] && echo "FAME_DRAM=$FAME_DRAM KiB is too small" >&2 && exit 1
+    let TMP=${FAME_DRAM}*${NODES}
+    set -- `head -1 /proc/meminfo`
+    [ $2 -lt $TMP ] && echo "Insufficient real RAM for $NODES nodes of $FAME_DRAM KiB each" >&2 && exit 1
 
     # Got FAM?
     [ -z "$FAME_FAM" ] && die "FAME_FAM variable must be specified"
@@ -500,7 +512,7 @@ function common_config_files() {
     #------------------------------------------------------------------
     ETCHOSTS=$MNT/etc/hosts
 
-    $SUDO tee $ETCHOSTS >/dev/null << EOHOSTS
+    quiet $SUDO tee $ETCHOSTS << EOHOSTS
 127.0.0.1	localhost
 127.1.0.1	NEWHOST
 
@@ -562,12 +574,22 @@ function clone_VMs()
 		quiet $SUDO sed -i -e "s/NEWHOST/$NEWHOST/" $TARGET
 	done
 
-	DOTSSH=home/l4tm/.ssh
-	quiet $SUDO mkdir -m 700 $MNT/$DOTSSH
-	quiet $SUDO cp id_rsa.nophrase.pub $MNT/$DOTSSH/authorized_keys
+	DOTSSH=$MNT/home/l4tm/.ssh
+	quiet $SUDO mkdir -m 700 $DOTSSH
+	quiet $SUDO cp id_rsa.nophrase     $DOTSSH
+	quiet $SUDO cp id_rsa.nophrase.pub $DOTSSH/authorized_keys
 	# The "l4tm" user in the chroot might be different from the host.
 	# FIXME but this is a safe assumption on a fresh vmdebootstrap.
-	quiet $SUDO chown -R 1000:1000 $MNT/$DOTSSH
+	quiet $SUDO chown -R 1000:1000 $DOTSSH
+	quiet $SUDO chmod 400 $DOTSSH/id_rsa.no_phrase
+	quiet $SUDO tee $DOTSSH/config << EOSSHCONFIG
+ConnectTimeout 5
+StrictHostKeyChecking no
+
+Host node*
+	User l4tm
+	IdentityFile ~/.ssh/id_rsa.nophrase
+EOSSHCONFIG
 
     	quiet $SUDO chroot $MNT systemctl enable tm-lfs
 
@@ -637,6 +659,8 @@ function emit_libvirt_XML() {
 	sed -i -e "s!NODEXX!$NODE!" $XML
 	sed -i -e "s!QCOWXX!$QCOW!" $XML
 	sed -i -e "s!MACADDRXX!$MACADDR!" $XML
+	sed -i -e "s!FAME_VDRAM!$FAME_VDRAM!" $XML
+	sed -i -e "s!FAME_VCPUS!$FAME_VCPUS!" $XML
 	sed -i -e "s!FAME_FAM!$FAME_FAM!" $XML
 	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $XML
     done
@@ -653,7 +677,7 @@ if [ $# -ne 1 -o "${1:0:1}" = '-' ]; then
 	echo "Environment:"
 	echo "http_proxy=$http_proxy"
 	env | grep FAME_ | sort
-	echo -e "\nusage: `basename $0` [ -h ] VMcount"
+	echo -e "\nusage: `basename $0` [ -h|? ] [ VMcount ]"
 	exit 0
 fi
 typeset -ir NODES=$1	# will evaluate to zero if non-integer

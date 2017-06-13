@@ -1,8 +1,8 @@
 <domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
   <name>NODEXX</name>
-  <memory unit='KiB'>67108864</memory>
-  <currentMemory unit='KiB'>67108864</currentMemory>
-  <vcpu placement='static'>8</vcpu>
+  <memory unit='KiB'>FAME_VDRAM</memory>
+  <currentMemory unit='KiB'>FAME_VDRAM</currentMemory>
+  <vcpu placement='static'>FAME_VCPUS</vcpu>
   <resource>
     <partition>/machine</partition>
   </resource>
