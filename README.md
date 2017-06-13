@@ -24,7 +24,22 @@ Several environment variables can be set (or exported first) that affect the ope
 | FAME_MIRROR | The script builds VM images by pulling packages from Debian repo. | http://ftp.us.debian.org/debian |
 | FAME_OUTDIR | All resulting artifacts are located here.  A size check is done to ensure there's enough space.  If that check fails, either free up space or set FAME_OUTDIR to another directory. | /tmp |
 | FAME_PROXY | Any proxy needed to reach $FAME_MIRROR. | $http_proxy |
+| FAME_VCPUS | The number of virtual CPUs for each VM | 2 |
+| FAME_VDRAM | Virtual DRAM allocated for each VM in KiB | 768432 |
 | FAME_VERBOSE |Normally the script is fairly "quiet", only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $ARTDIR/fabric_emulation.log | unset |
+
+If you run the script with no options it will print the current values:
+
+$ ./emulation_configure.bash 
+Environment:
+http_proxy=http://some.proxy.net:8080
+FAME_FAM=/home/rocky/MyFAME/FAM
+FAME_MIRROR=http://ftp.us.debian.org/debian
+FAME_OUTDIR=/home/rocky/DiscoverFAME
+FAME_PROXY=http://some.proxy.net:8080
+FAME_VCPUS=2
+FAME_VDRAM=786432
+FAME_VERBOSE=
 
 These variables must be seen in the script's environment so use the "-E"
 command if invoking sudo directly:
