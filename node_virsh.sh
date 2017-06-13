@@ -18,6 +18,11 @@ define)
 	exit 0
 	;;
 
+destroy)
+	for DOM in $NODESDOM; do $VIRSH destroy $DOM; done
+	exit 0
+	;;
+
 start)
 	for DOM in $NODESDOM; do $VIRSH start $DOM; done
 	exit 0
@@ -28,8 +33,11 @@ status)
 	exit 0
 	;;
 
-stop|destroy)
-	for DOM in $NODESDOM; do $VIRSH destroy $DOM; done
+stop|shutdown)
+	for NODE in $NODESDOM; do
+		echo -n "$NODE: "
+		ssh $NODE sudo shutdown -h 0
+	done
 	exit 0
 	;;
 
