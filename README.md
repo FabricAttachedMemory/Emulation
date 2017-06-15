@@ -79,7 +79,7 @@ The following files will be created in $FAME_OUTDIR after a successful run.  Not
 | nodeXX.xml | The "domain" defintion file for "node" XX, loaded into virt-manager via "virsh define nodeXX.xml" |
 | node_emulation.log | Trace file of all steps by emulation_configure.bash |
 | node_template.img |	Pristine (un-customized) file-system image of vmdebootstrap.  This is a partitioned disk image and is not needed to run the VMs. |
-| virsh_nodes.sh | Shell script to to "define", "start", "destroy" (stop), and "undefine" all VM "nodes" |
+| node_virsh.sh | Shell script to to "define", "start", "destroy" (stop), and "undefine" all VM "nodes" |
 
 ## VM Guest Environment
 
