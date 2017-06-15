@@ -8,15 +8,13 @@ This repo delivers a script to create virtual machine file system images directl
 
 Fabric-Attached Memory Emulation is an environment that can be used to explore the new architectural paradigm of The Machine.  Some knowledge of The Machine architecture is useful to use this suite, but it actually ignores the minutiae of the hardware.  Reasonable fluency with the QEMU/KVM/libvirt/virsh suite is highly recommended.
 
-The emulation employs QEMU virtual machines performing the role of "nodes" in The Machine.  Inter-Virtual Machine Shared Memory (IVSHMEM) is configured across all the "nodes" so they see a shared, global memory space.  This space can be accessed via mmap(2) and will behave just the the memory centric-computing on The Machine.
+The emulation employs QEMU virtual machines performing the role of "nodes" in The Machine.  Inter-Virtual Machine Shared Memory (IVSHMEM) is configured across all the "nodes" so they see a shared, global memory space.  This space can be accessed via mmap(2) and will behave just the same as the memory centric-computing on The Machine.
 
 ## Setup and Execution
 
 The emulation configurator script, *emulation_configure.bash*, is written for Debian 8.x (Jessie/stable).  It should have the packages necessary for x86_64 virtual machines: qemu-system-x86_64 and libvirtd-bin should bring in everything else.  You also need the vmdebootstrap package.
 
-After cloning this repo, run the script; it takes the desired number of VMs as its sole argument.  Several of the commands in the script must be run as root; you can run the entire script as root (or sudo).  You can also run the script as a normal user: all necessary commands are run internally under "sudo".
-
-Several environment variables can be set (or exported first) that affect the operation of emulation_configure.bash:
+After cloning this repo, several environment variables can be set (or exported first) that affect the operation of emulation_configure.bash:
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
@@ -30,7 +28,7 @@ Several environment variables can be set (or exported first) that affect the ope
 
 If you run the script with no options it will print the current values:
 
-$ ./emulation_configure.bash 
+$ ./emulation_configure.bash
 Environment:
 http_proxy=http://some.proxy.net:8080
 FAME_FAM=/home/rocky/MyFAME/FAM
@@ -41,18 +39,25 @@ FAME_VCPUS=2
 FAME_VDRAM=786432
 FAME_VERBOSE=
 
-These variables must be seen in the script's environment so use the "-E"
-command if invoking sudo directly:
+Variables can be exported to be used by the script using:
 
     $ export FAME_MIRROR=http://a.b.com/debian
     $ export FAME_VERBOSE=yes
+
+Setting the FAME_FAM variable is dependent upon the user's version of QEMU. For versions 1.9 - 2.4, refer to the [tm-ivshmem-server repo](https://github.com/FabricAttachedMemory/tm-ivshmem-server) For version 2.5 and beyond, the backup file must be created, and must be over 1G:
+
+    $ fallocate -l 16G /var/lib/GlobalNVM
+
+After setting variables, now run the script; it takes the desired number of VMs as its sole argument(n).  Several of the commands in the script must be run as root. You can either run the entire script as root (or sudo), or run the script as a normal user: all necessary commands are run internally under "sudo".
+
     $ emulation_configure.bash n
 
-works, as well as
+Variables must be seen in the script's environment so use the "-E"
+command if invoking sudo directly:
 
     $ sudo -E emulation_configure.bash n
 
-or
+The variables can also be configured in the command where the script is run:
 
     $ sudo FAME_VERBOSE=yes FAME_MIRROR=http://a.b.com/debian emulation_configure.bash n
 
@@ -93,7 +98,7 @@ A reasonable development environment (gcc, make) is available.  This can be used
 
 ## IVSHMEM connectivity between all VMs
 
-Memory-centric computing in a The Machine is done used via memory accesses similar to those used with legacy memory-mapping.  Emulation provides a resource for such [user space programming via IVSHMEM](https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).  A typical QEMU invocation line looks something like this: 
+Memory-centric computing in a The Machine is done via memory accesses similar to those used with legacy memory-mapping.  Emulation provides a resource for such [user space programming via IVSHMEM](https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).  A typical QEMU invocation line looks something like this:
 
     qemu-system-x86_64 -enable-kvm \
         -net bridge,br=fabric_em,helper=/usr/lib/qemu/qemu-bridge-helper \
