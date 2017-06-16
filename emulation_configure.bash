@@ -3,7 +3,7 @@
 # Copyright 2015-2017 Hewlett Packard Enterprise Development LP
 
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License, version 2  as 
+# it under the terms of the GNU General Public License, version 2  as
 # published by the Free Software Foundation.
 
 # This program is distributed in the hope that it will be useful,
@@ -174,10 +174,10 @@ function verify_host_environment() {
     # Got RAM/DRAM for the CPU?  Earlier QEMU had trouble booting this
     # environment in less than this space, could have been page tables
     # for larger IVSHMEM.  FIXME: force KiB values, verify against FAM_SIZE.
-    [ $FAME_DRAM -lt 786432 ] && echo "FAME_DRAM=$FAME_DRAM KiB is too small" >&2 && exit 1
-    let TMP=${FAME_DRAM}*${NODES}
+    [ $FAME_VDRAM -lt 786432 ] && echo "FAME_VDRAM=$FAME_VDRAM KiB is too small" >&2 && exit 1
+    let TMP=${FAME_VDRAM}*${NODES}
     set -- `head -1 /proc/meminfo`
-    [ $2 -lt $TMP ] && echo "Insufficient real RAM for $NODES nodes of $FAME_DRAM KiB each" >&2 && exit 1
+    [ $2 -lt $TMP ] && echo "Insufficient real RAM for $NODES nodes of $FAME_VDRAM KiB each" >&2 && exit 1
 
     # Got FAM?
     [ -z "$FAME_FAM" ] && die "FAME_FAM variable must be specified"
@@ -194,7 +194,7 @@ function verify_host_environment() {
     	'losetup -al shows active loopback mounts, please clear them'
 
     set -- `qemu-system-x86_64 -version`
-    [ "$4" != "2.6.0" ] && die "qemu is not version 2.6.0"
+    [ "$4" != "2.6.0" || "$4" != "2.8.0" ] && die "qemu is not version 2.6.0 or 2.8.0"
     verify_QBH
 
     # Space for 2 raw image files, the tarball, all qcows, and slop
@@ -283,7 +283,7 @@ function mount_image() {
 	quiet $SUDO rmdir $MNT	# Leave no traces
     fi
     [ $# -eq 0 ] && return 0
-    
+
     # Now the fun begins.  Make /etc/grub.d/[00_header|10_linux] happy
     LOCALIMG="$*"
     [ ! -f $LOCALIMG ] && LAST_KPARTX= && return 1
@@ -332,7 +332,7 @@ function validate_template_image() {
 
 ###########################################################################
 # vmdebootstrap uses debootstrap which uses wget to retrieve packages.
-# wget obeys (lower case) "http_proxy" but can be overridden by 
+# wget obeys (lower case) "http_proxy" but can be overridden by
 # $HOME/.wgetrc or /etc/wgetrc.  Try to help; export http_proxy to
 # avoid a reported issue in the VMD variable.
 
@@ -411,7 +411,7 @@ function transmogrify_l4fame() {
     echo "Updating apt for L4FAME..."
     quiet $SUDO chroot $MNT apt-get update
     [ $? -ne 0 ] && die "Cannot refresh repo sources and preferences"
-  
+
     # L4FAME does not come with a linux-image-amd64 metapackage to lock
     # its kernel down.  An apt-get update will probably blow this away.
     L4FAME_KERNEL="linux-image-4.8.0-l4fame+"	# Always use quotes.
@@ -424,7 +424,7 @@ function transmogrify_l4fame() {
     # Installing a kernel took info from /proc and /sys that set up
     # /etc/fstab, but it's from the host system.  Fix that, along with
     # other things.  Then finish off L4FAME.
-    
+
     common_config_files
 
     install_one l4fame-node
@@ -432,7 +432,7 @@ function transmogrify_l4fame() {
 
     mount_image
 
-    return $RET 
+    return $RET
 }
 
 ###########################################################################
@@ -499,7 +499,7 @@ function common_config_files() {
 
     # Yes, the word "NEWHOST", which will be sedited later
     echo NEWHOST | quiet $SUDO tee $MNT/etc/hostname
-    
+
     echo "http_proxy=$FAME_PROXY" | quiet $SUDO tee -a $MNT/etc/environment
 
     #------------------------------------------------------------------
@@ -541,7 +541,7 @@ EOHOSTS
     FSTAB=$MNT/etc/fstab
 
     quiet $SUDO tee $FSTAB << EOFSTAB
-proc		/proc	proc	defaults	0 0 
+proc		/proc	proc	defaults	0 0
 /dev/sda1	/	ext4	defaults	0 0
 torms:/srv	/srv	nfs	defaults	0 0
 EOFSTAB
@@ -562,7 +562,7 @@ function clone_VMs()
 	    yesno "Re-use $QCOW2"
 	    [ $? -eq 0 ] && echo "Keep existing $QCOW2" && continue
 	fi
-		
+
 	echo "Customize $NEWHOST..."
     	NEWIMG="$FAME_OUTDIR/$NEWHOST.img"
 	quiet cp $TEMPLATE $NEWIMG
