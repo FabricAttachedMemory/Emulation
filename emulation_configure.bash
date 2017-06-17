@@ -194,7 +194,7 @@ function verify_host_environment() {
     	'losetup -al shows active loopback mounts, please clear them'
 
     set -- `qemu-system-x86_64 -version`
-    [ "$4" != "2.6.0" || "$4" != "2.8.0" ] && die "qemu is not version 2.6.0 or 2.8.0"
+    [ "$4" != "2.6.0" -a "$4" != "2.8.0" ] && die "qemu is not version 2.6.0 or 2.8.0"
     verify_QBH
 
     # Space for 2 raw image files, the tarball, all qcows, and slop
@@ -404,6 +404,20 @@ function transmogrify_l4fame() {
 
     # Assumes wget came with vmdebootstrap.  bash is for the pipe.
     echo "Adding L4FAME GPG key..."
+
+    #------------------------------------------------------------------
+    # Certain distros (ex: Debian stretch) install a symlink that may
+    # be unresolved in a bind mount.  Hardcode a simple file so the
+    # wget will work.  In the chroot, this will resolve directly against
+    # the dnsmasq assigned to the virtual bridge, which will fall over
+    # to the host resolver and do the right thing.
+
+    RESOLVdotCONF=$MNT/etc/resolv.conf
+
+    quiet unlink $RESOLVdotCONF
+
+    echo "nameserver	$TORMS" | quiet $SUDO tee $RESOLVdotCONF
+
     quiet $SUDO chroot $MNT /bin/bash -c \
     	"'wget -O - https://db.debian.org/fetchkey.cgi?fingerprint=C383B778255613DFDB409D91DB221A6900000011 | apt-key add -'"
     [ $? -ne 0 ] && die "L4FAME GPG key installation failed"
@@ -531,11 +545,6 @@ EOHOSTS
     	echo $OCTETS123.$I "${HOSTUSERBASE}$I" | \
 		quiet $SUDO tee -a $ETCHOSTS
     done
-
-    #------------------------------------------------------------------
-    RESOLVdotCONF=$MNT/etc/resolv.conf
-
-    echo "nameserver	$TORMS" | quiet $SUDO tee $RESOLVdotCONF
 
     #------------------------------------------------------------------
     FSTAB=$MNT/etc/fstab
