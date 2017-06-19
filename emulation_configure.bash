@@ -418,7 +418,7 @@ function transmogrify_l4fame() {
 
     RESOLVdotCONF=$MNT/etc/resolv.conf
 
-    quiet unlink $RESOLVdotCONF
+    quiet $SUDO unlink $RESOLVdotCONF
 
     echo "nameserver	$TORMS" | quiet $SUDO tee $RESOLVdotCONF
 
