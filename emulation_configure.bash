@@ -49,6 +49,8 @@ typeset -r NETWORK=${HOSTUSERBASE}_emul		# libvirt name length limits
 typeset -r HPEOUI="48:50:42"
 typeset -r TEMPLATE=$FAME_OUTDIR/${HOSTUSERBASE}_template.img
 typeset -r TARBALL=$FAME_OUTDIR/${HOSTUSERBASE}_template.tar
+typeset -r OCTETS123=192.168.42			# see fabric_emul.net.xml
+typeset -r TORMS=$OCTETS123.254
 
 export DEBIAN_FRONTEND=noninteractive	# preserved by chroot
 export DEBCONF_NONINTERACTIVE_SEEN=true
@@ -203,6 +205,8 @@ function verify_host_environment() {
     let KNEEDED=1000000*$GNEEDED
     TMPFREE=`df "$FAME_OUTDIR" | awk '/^\// {print $4}'`
     [ $TMPFREE -lt $KNEEDED ] && die "$FAME_OUTDIR has less than $GNEEDED G free"
+
+    echo_environment > $FAME_OUTDIR/env.sh	# For next time
 
     return 0
 }
@@ -504,8 +508,6 @@ function manifest_template_image() {
 # Helper for cloning into current image at $MNT
 
 function common_config_files() {
-    OCTETS123=192.168.42	# see fabric_emul.net.xml
-    TORMS=$OCTETS123.254
 
     # One-liners
 
@@ -679,13 +681,19 @@ function emit_libvirt_XML() {
 }
 
 ###########################################################################
+
+function echo_environment() {
+	FAME_FAM=${FAME_FAM:-"NEEDS TO BE SET!"}
+	echo "http_proxy=$http_proxy"
+	env | grep FAME_ | sort
+}
+
+###########################################################################
 # MAIN - do a few things before set -u
 
 if [ $# -ne 1 -o "${1:0:1}" = '-' ]; then
-	FAME_FAM=${FAME_FAM:-"NEEDS TO BE SET!"}
 	echo "Environment:"
-	echo "http_proxy=$http_proxy"
-	env | grep FAME_ | sort
+	echo_environment
 	echo -e "\nusage: `basename $0` [ -h|? ] [ VMcount ]"
 	exit 0
 fi
