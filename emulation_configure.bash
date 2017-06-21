@@ -196,7 +196,7 @@ function verify_host_environment() {
     	'losetup -al shows active loopback mounts, please clear them'
 
     set -- `qemu-system-x86_64 -version`
-    [ "$4" != "2.6.0" -a "$4" != "2.8.0" ] && die "qemu is not version 2.6.0 or 2.8.0"
+    [ "${4:0:5}" != "2.6.0" -a "${4:0:5}" != "2.8.0" ] && die "qemu is not version 2.6.0 or 2.8.0"
     verify_QBH
 
     # Space for 2 raw image files, the tarball, all qcows, and slop
