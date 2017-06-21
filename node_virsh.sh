@@ -7,7 +7,8 @@ DIRECTIVE=${1-}
 set -u
 
 EXECUTION_DIRECTORY="$( dirname "${BASH_SOURCE[0]}" )"
-NODESXML=`find $EXECUTION_DIRECTORY/ -name "node*.xml" -printf "%f\n"`
+cd $EXECUTION_DIRECTORY
+NODESXML=`find ./ -name "node*.xml" -printf "%f\n"`
 NODESDOM=`echo $NODESXML | sed 's/\.xml//g'`
 
 [ `id -u` = 0 ] && VIRSH="virsh" || VIRSH='sudo virsh'
@@ -15,7 +16,7 @@ NODESDOM=`echo $NODESXML | sed 's/\.xml//g'`
 case "$DIRECTIVE" in
 
 define)
-	for XML in $NODESXML; do $VIRSH define $EXECUTION_DIRECTORY"/"$XML; done
+	for XML in $NODESXML; do $VIRSH define $XML; done
 	exit 0
 	;;
 
