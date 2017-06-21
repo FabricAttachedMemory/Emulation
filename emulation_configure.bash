@@ -199,8 +199,8 @@ function verify_host_environment() {
     declare -a VERIFIED_QEMU_VERSIONS=("2.6.0" "2.8.0" "2.8.1")
     set -- `qemu-system-x86_64 -version`
     # The following uses regular expressions to check if VERIFIED_QEMU_VERSIONS contains the system version of QEMU.
-    # See man page for bash, version 4.4.7(1)-release.
-    ! [[ ${VERIFIED_QEMU_VERSIONS[*]} =~ ${4:0:5} ]] && die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
+    # See man page for bash, 3.2.4.2 Conditional Constructs.
+    [[ ${VERIFIED_QEMU_VERSIONS[*]} =~ ${4:0:5} ]] || die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
     verify_QBH
 
     # Space for 2 raw image files, the tarball, all qcows, and slop
