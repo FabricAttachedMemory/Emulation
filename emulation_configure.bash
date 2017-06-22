@@ -195,8 +195,12 @@ function verify_host_environment() {
     [ $LOOPS -gt 0 ] && die \
     	'losetup -al shows active loopback mounts, please clear them'
 
+    # verified working QEMU versions
+    declare -a VERIFIED_QEMU_VERSIONS=("2.6.0" "2.8.0" "2.8.1")
     set -- `qemu-system-x86_64 -version`
-    [ "$4" != "2.6.0" -a "$4" != "2.8.0" ] && die "qemu is not version 2.6.0 or 2.8.0"
+    # The following uses regular expressions to check if VERIFIED_QEMU_VERSIONS contains the system version of QEMU.
+    # See man page for bash, 3.2.4.2 Conditional Constructs.
+    [[ ${VERIFIED_QEMU_VERSIONS[*]} =~ ${4:0:5} ]] || die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
     verify_QBH
 
     # Space for 2 raw image files, the tarball, all qcows, and slop

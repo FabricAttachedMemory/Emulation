@@ -6,7 +6,9 @@ DIRECTIVE=${1-}
 
 set -u
 
-NODESXML=`ls node*.xml`
+EXECUTION_DIRECTORY="$( dirname "${BASH_SOURCE[0]}" )"
+cd $EXECUTION_DIRECTORY
+NODESXML=`find ./ -name "node*.xml" -printf "%f\n"`
 NODESDOM=`echo $NODESXML | sed 's/\.xml//g'`
 
 [ `id -u` = 0 ] && VIRSH="virsh" || VIRSH='sudo virsh'
