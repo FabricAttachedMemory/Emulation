@@ -38,6 +38,8 @@ export FAME_PROXY=${FAME_PROXY:-$http_proxy}
 
 export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 
+export FAME_L4FAME=${FAME_L4FAME:-}	# Experimental
+
 ###########################################################################
 # Hardcoded to match content in external config files.  If any of these
 # is zero length you will probably trash your host OS.  Bullets, gun, feet.
@@ -392,30 +394,17 @@ function install_one() {
 function transmogrify_l4fame() {
     mount_image $TEMPLATE || return 1
     sep "Extending template with L4FAME: updating sources..."
-    L4FAME='http://downloads.linux.hpe.com/repo/l4fame'
     SOURCES="$MNT/etc/apt/sources.list.d/l4fame.list"
     APTCONF="$MNT/etc/apt/apt.conf.d/00FAME.conf"
-    echo "deb $L4FAME unstable/" | quiet $SUDO tee $SOURCES
-    echo "deb-src $L4FAME unstable/" | quiet $SUDO tee -a $SOURCES
 
     # FIXME: did vmdebootstrap do this?
     if [ "$FAME_PROXY" ]; then
     	echo "Acquire::http::Proxy \"$FAME_PROXY\";" | quiet $SUDO tee $APTCONF
     fi
 
-    # Without a key, you get error message on upgrade:
-    # W: No sandbox user '_apt' on the system, can not drop privileges
-    # N: Updating from such a repository can't be done securely, and is
-    #    therefore disabled by default.
-    # N: See apt-secure(8) manpage for repository creation and user
-    #    configuration details.
-
-    # Assumes wget came with vmdebootstrap.  bash is for the pipe.
-    echo "Adding L4FAME GPG key..."
-
     #------------------------------------------------------------------
-    # Certain distros (ex: Debian stretch) install a symlink that may
-    # be unresolved in a bind mount.  Hardcode a simple file so the
+    # wget: certain distros (ex: Debian stretch) install a symlink that
+    # may be unresolved in a bind mount.  Hardcode a simple file so the
     # wget will work.  In the chroot, this will resolve directly against
     # the dnsmasq assigned to the virtual bridge, which will fall over
     # to the host resolver and do the right thing.
@@ -426,18 +415,46 @@ function transmogrify_l4fame() {
 
     echo "nameserver	$TORMS" | quiet $SUDO tee $RESOLVdotCONF
 
-    quiet $SUDO chroot $MNT /bin/bash -c \
-    	"'wget -O - https://db.debian.org/fetchkey.cgi?fingerprint=C383B778255613DFDB409D91DB221A6900000011 | apt-key add -'"
-    [ $? -ne 0 ] && die "L4FAME GPG key installation failed"
+    # Compute the location of the second repo
 
-    echo "Updating apt for L4FAME..."
+    if [ "$FAME_L4FAME" ]; then		# Container experiment
+    	L4FAME=$FAME_L4FAME
+    	echo "deb $L4FAME unstable main" | quiet $SUDO tee $SOURCES
+    	# echo "deb-src $L4FAME unstable main" | quiet $SUDO tee -a $SOURCES
+    else
+    	L4FAME='http://downloads.linux.hpe.com/repo/l4fame'
+    	echo "deb $L4FAME unstable/" | quiet $SUDO tee $SOURCES
+    	echo "deb-src $L4FAME unstable/" | quiet $SUDO tee -a $SOURCES
+
+    	# Without a key, you get error message on upgrade:
+    	# W: No sandbox user '_apt' on the system, can not drop privileges
+    	# N: Updating from such a repository can't be done securely, and is
+    	#    therefore disabled by default.
+    	# N: See apt-secure(8) manpage for repository creation and user
+    	#    configuration details.
+
+    	# Assumes wget came with vmdebootstrap.  bash is for the pipe.
+    	echo "Adding L4FAME GPG key..."
+
+    	quiet $SUDO chroot $MNT /bin/bash -c \
+    		"'wget -O - https://db.debian.org/fetchkey.cgi?fingerprint=C383B778255613DFDB409D91DB221A6900000011 | apt-key add -'"
+    	[ $? -ne 0 ] && die "L4FAME GPG key installation failed"
+    fi
+
+    echo "Contacting $L4FAME..."
+    quiet wget -O /dev/null $L4FAME > /dev/null 2>&1
+    [ $? -ne 0 ] && die "Cannot reach $L4FAME"
+
+    echo "Updating apt from $L4FAME..."
     quiet $SUDO chroot $MNT apt-get update
     [ $? -ne 0 ] && die "Cannot refresh repo sources and preferences"
 
     # L4FAME does not come with a linux-image-amd64 metapackage to lock
     # its kernel down.  An apt-get update will probably blow this away.
-    L4FAME_KERNEL="linux-image-4.8.0-l4fame+"	# Always use quotes.
-    install_one "$L4FAME_KERNEL"
+    # L4FAME_KERNEL="linux-image-4.8.0-l4fame+"
+    L4FAME_KERNEL=`$SUDO chroot $MNT apt-cache search linux-image | awk '/linux-image-.*\+ / {print $1}'`
+    [ -z "$L4FAME_KERNEL" ] && die "Could not retrieve L4FAME kernel"
+    install_one "$L4FAME_KERNEL"	# Always use quotes.
     [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
 
     quiet $SUDO chroot $MNT apt-mark hold "$L4FAME_KERNEL"
