@@ -4,6 +4,7 @@
 # "debootstrapopts" or "variant" depending on version of vmdebootstrap
 
 [config]
+debootstrapopts = variant=buildd
 verbose = True
 output =
 log-level = debug

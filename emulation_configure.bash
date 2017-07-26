@@ -200,9 +200,10 @@ function verify_host_environment() {
     # verified working QEMU versions
     declare -a VERIFIED_QEMU_VERSIONS=("2.6.0" "2.8.0" "2.8.1")
     set -- `qemu-system-x86_64 -version`
-    # The following uses regular expressions to check if VERIFIED_QEMU_VERSIONS contains the system version of QEMU.
+    # Use regex to check the current version against VERIFIED_QEMU_VERSIONS.
     # See man page for bash, 3.2.4.2 Conditional Constructs.
-    [[ ${VERIFIED_QEMU_VERSIONS[*]} =~ ${4:0:5} ]] || die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
+    [[ ${VERIFIED_QEMU_VERSIONS[*]} =~ ${4:0:5} ]] || \
+    	die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
     verify_QBH
 
     # Space for 2 raw image files, the tarball, all qcows, and slop
@@ -488,14 +489,33 @@ function manifest_template_image() {
 	[ $? -eq 0 ] && echo "Keep existing $TEMPLATEIMG" && return 0
     fi
     echo Creating new $TEMPLATEIMG from $FAME_MIRROR
-    CFG=templates/vmd.debian	# FIXME
 
-    VMD="$SUDO vmdebootstrap --no-default-configs --config=$CFG"
+    # Different versions eat different arguments.  --dump-config used to be
+    # an easy test but with later versions the arg list started getting
+    # unwieldy.  Use multiple VMD files.  VERIFIED_XXX means it's been
+    # tested at least once.  The lists are easier than numeric comparisons. 
 
-    # Does this vintage of vmdeboostrap eat "variant" or "debootstrapopts"?
-    # --dump-config used to be easy, but with later versions the arg list
-    # started getting unwielding.  Use multiple VMD files.
+    VMDVER=`vmdebootstrap --version`
 
+    # Use regex to check the current version against different lists.
+    # See man page for bash, 3.2.4.2 Conditional Constructs.
+
+    declare -a VERIFIED_TMP=("0.2" "0.5")
+    if [[ ${VERIFIED_TMP[*]} =~ $VMDVER ]]; then
+    	SUFFIX=0.5
+    else 
+	declare -a VERIFIED_TMP=("1.0" "2.0")
+	if [[ ${VERIFIED_TMP[*]} =~ $VMDVER ]]; then
+    	    SUFFIX=0.5
+	else
+    	    die "vmdebootstrap $VMDVER has not been validated"
+	fi
+    fi
+    VMDCFG="templates/vmd_$SUFFIX"
+    [ ! -f $VMDCFG ] && die "vmdebootstrap $VMDVER is not implemented"
+    die $VMDCFG
+
+    VMD="$SUDO vmdebootstrap --no-default-configs --config=$VMDCFG"
     $VMD --dump-config | grep -q '^variant ='
     if [ $? -eq 0 ]; then
     	VAROPT='--variant=buildd'
