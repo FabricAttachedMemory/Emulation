@@ -49,7 +49,7 @@ typeset -r PROJECT=${HOSTUSERBASE}_emulation
 typeset -r LOG=$FAME_OUTDIR/$PROJECT.log
 typeset -r NETWORK=${HOSTUSERBASE}_emul		# libvirt name length limits
 typeset -r HPEOUI="48:50:42"
-typeset -r TEMPLATE=$FAME_OUTDIR/${HOSTUSERBASE}_template.img
+typeset -r TEMPLATEIMG=$FAME_OUTDIR/${HOSTUSERBASE}_template.img
 typeset -r TARBALL=$FAME_OUTDIR/${HOSTUSERBASE}_template.tar
 typeset -r OCTETS123=192.168.42			# see fabric_emul.net.xml
 typeset -r TORMS=$OCTETS123.254
@@ -223,8 +223,8 @@ function verify_host_environment() {
 function libvirt_bridge() {
     sep Configure libvirt network bridge \"$NETWORK\"
 
-    XML=$PROJECT.net.xml
-    [ ! -f $XML ] && die "Missing local file $XML"
+    NETXML=templates/network.xml
+    [ ! -f $NETXML ] && die "Missing local file $NETXML"
 
     # Some installations set up LIBVIRT_DEFAULT, but the virsh man page
     # says LIBVIRT_DEFAULT_URI.  Get the deprecated version, too..
@@ -246,8 +246,8 @@ function libvirt_bridge() {
     done
 
     # virsh will define a net with a loooong name, but fail on starting it.
-    quiet $VIRSH net-define $XML
-    [ $? -ne 0 ] && die "Cannot define the network $NETWORK:\n`cat $XML`"
+    quiet $VIRSH net-define $NETXML
+    [ $? -ne 0 ] && die "Cannot define the network $NETWORK:\n`cat $NETXML`"
 
     for CMD in net-start net-autostart; do
 	quiet $VIRSH $CMD $NETWORK
@@ -266,7 +266,7 @@ function libvirt_bridge() {
 # yields a root device of /dev/loop0, whereas kpartx root device is
 # /dev/mapper/loop0.  When grub-mkconfig is finally invoked,
 # /etc/grub.d/00_header: chain calls grub-probe a lot to finally find the
-#	image $TEMPLATE (/tmp/node_template.img).  Since that file doesn't
+#	image $TEMPLATEIMG (/tmp/node_template.img).  Since that file doesn't
 #	exist in the image, grub-probe dies with "Cannot find canonical...".
 #	However the kpartx method gives up /dev/dm-X, so it's happy without
 #	spoofing the file.
@@ -332,9 +332,9 @@ function mount_image() {
 # Tri-state return value
 
 function validate_template_image() {
-    [ -f $TEMPLATE ] || return 1		# File not found
-    mount_image $TEMPLATE || return 255		# aka return -1: corrupt
-    test -d $MNT/home/l4tm			# see node_emulation.vmd
+    [ -f $TEMPLATEIMG ] || return 1		# File not found
+    mount_image $TEMPLATEIMG || return 255	# aka return -1: corrupt
+    test -d $MNT/home/l4tm			# see vmd.xxx files
     RET=$?					# Incomplete
     mount_image
     return $RET
@@ -392,7 +392,7 @@ function install_one() {
 # it still needs to have grub installed.
 
 function transmogrify_l4fame() {
-    mount_image $TEMPLATE || return 1
+    mount_image $TEMPLATEIMG || return 1
     sep "Extending template with L4FAME: updating sources..."
     SOURCES="$MNT/etc/apt/sources.list.d/l4fame.list"
     APTCONF="$MNT/etc/apt/apt.conf.d/00FAME.conf"
@@ -478,21 +478,23 @@ function transmogrify_l4fame() {
 # This takes about six minutes if the mirror is unproxied on a LAN.  YMMV.
 
 function manifest_template_image() {
-    sep Handle VM golden image $TEMPLATE
+    sep Handle VM golden image $TEMPLATEIMG
 
     validate_template_image
     RET=$?
-    [ $RET -eq 255 ] && quiet $SUDO rm -f $TEMPLATE && RET=0
+    [ $RET -eq 255 ] && quiet $SUDO rm -f $TEMPLATEIMG && RET=0
     if [ $RET -eq 0 ]; then
-    	yesno "Re-use existing $TEMPLATE"
-	[ $? -eq 0 ] && echo "Keep existing $TEMPLATE" && return 0
+    	yesno "Re-use existing $TEMPLATEIMG"
+	[ $? -eq 0 ] && echo "Keep existing $TEMPLATEIMG" && return 0
     fi
-    echo Creating new $TEMPLATE from $FAME_MIRROR
-    CFG=$PROJECT.vmd	# local
+    echo Creating new $TEMPLATEIMG from $FAME_MIRROR
+    CFG=templates/vmd.debian	# FIXME
 
     VMD="$SUDO vmdebootstrap --no-default-configs --config=$CFG"
 
     # Does this vintage of vmdeboostrap eat "variant" or "debootstrapopts"?
+    # --dump-config used to be easy, but with later versions the arg list
+    # started getting unwielding.  Use multiple VMD files.
 
     $VMD --dump-config | grep -q '^variant ='
     if [ $? -eq 0 ]; then
@@ -508,17 +510,17 @@ function manifest_template_image() {
     # interferes with subsequent runs, but doesn't complain properly.
     # Later versions of vmdebootstrap don't take both --image and --tarball.
 
-    $VMD $VAROPT --log=$LOG --image=$TEMPLATE \
+    $VMD $VAROPT --log=$LOG --image=$TEMPLATEIMG \
     	--mirror=$FAME_MIRROR --owner=$SUDO_USER
     RET=$?
     quiet $SUDO chown $SUDO_USER "$FAME_OUTDIR/${HOSTUSERBASE}.*" 	# --owner bug
-    if [ $RET -ne 0 -o ! -f $TEMPLATE ]; then
+    if [ $RET -ne 0 -o ! -f $TEMPLATEIMG ]; then
 	BAD=`mount | grep '/dev/loop[[:digit:]]+p[[:digit:]]+'`
 	[ $BAD ] && echo "mount of $BAD may be a problem" | tee -a $LOG
-    	die "Build of $TEMPLATE failed"
+    	die "Build of $TEMPLATEIMG failed"
     fi
 
-    validate_template_image || die "Validation of fresh $TEMPLATE failed"
+    validate_template_image || die "Validation of fresh $TEMPLATEIMG failed"
 
     transmogrify_l4fame || die "Addition of L4FAME repo failed"
 
@@ -597,7 +599,7 @@ function clone_VMs()
 
 	echo "Customize $NEWHOST..."
     	NEWIMG="$FAME_OUTDIR/$NEWHOST.img"
-	quiet cp $TEMPLATE $NEWIMG
+	quiet cp $TEMPLATEIMG $NEWIMG
 
 	# Fixup files
 	mount_image $NEWIMG || die "Cannot mount $NEWIMG"
@@ -608,10 +610,11 @@ function clone_VMs()
 
 	DOTSSH=$MNT/home/l4tm/.ssh
 	quiet $SUDO mkdir -m 700 $DOTSSH
-	quiet $SUDO cp id_rsa.nophrase     $DOTSSH
-	quiet $SUDO cp id_rsa.nophrase.pub $DOTSSH/authorized_keys
+	quiet $SUDO cp templates/id_rsa.nophrase     $DOTSSH
+	quiet $SUDO cp templates/id_rsa.nophrase.pub $DOTSSH/authorized_keys
 	# The "l4tm" user in the chroot might be different from the host.
-	# FIXME but this is a safe assumption on a fresh vmdebootstrap.
+
+	# FIXME but this is a reasonable assumption on a fresh vmdebootstrap.
 	quiet $SUDO chown -R 1000:1000 $DOTSSH
 	quiet $SUDO chmod 400 $DOTSSH/id_rsa.no_phrase
 	quiet $SUDO tee $DOTSSH/config << EOSSHCONFIG
@@ -637,7 +640,7 @@ EOSSHCONFIG
 ###########################################################################
 # When in doubt, "qemu-system-x86_64 -device ?" or "-device virtio-net,?"
 
-function emit_qemu_invocations() {
+function emit_qemu_invocations_DEPRECATED() {
     DOIT=$FAME_OUTDIR/$PROJECT.bash
     sep "\nVM invocation script is $DOIT"
 
@@ -685,16 +688,17 @@ function emit_libvirt_XML() {
 	# This pattern is recognized by tm-lfs as the implicit node number
 	MACADDR="$HPEOUI:${N2}:${N2}:${N2}"
 	QCOW=$FAME_OUTDIR/$NODE.qcow2
-	XML=$FAME_OUTDIR/$NODE.xml
+	SRCXML=templates/node.intel.xml	# FIXME
+	NODEXML=$FAME_OUTDIR/$NODE.xml
 
-	cp node_template.xml $XML
-	sed -i -e "s!NODEXX!$NODE!" $XML
-	sed -i -e "s!QCOWXX!$QCOW!" $XML
-	sed -i -e "s!MACADDRXX!$MACADDR!" $XML
-	sed -i -e "s!FAME_VDRAM!$FAME_VDRAM!" $XML
-	sed -i -e "s!FAME_VCPUS!$FAME_VCPUS!" $XML
-	sed -i -e "s!FAME_FAM!$FAME_FAM!" $XML
-	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $XML
+	cp $SRCXML $NODEXML
+	sed -i -e "s!NODEXX!$NODE!" $NODEXML
+	sed -i -e "s!QCOWXX!$QCOW!" $NODEXML
+	sed -i -e "s!MACADDRXX!$MACADDR!" $NODEXML
+	sed -i -e "s!FAME_VDRAM!$FAME_VDRAM!" $NODEXML
+	sed -i -e "s!FAME_VCPUS!$FAME_VCPUS!" $NODEXML
+	sed -i -e "s!FAME_FAM!$FAME_FAM!" $NODEXML
+	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $NODEXML
     done
     cp node_virsh.sh $FAME_OUTDIR
     echo "Change directory to $FAME_OUTDIR and run node_virsh.sh"
