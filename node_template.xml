@@ -15,8 +15,8 @@
     <apic/>
     <pae/>
   </features>
-  <cpu mode='custom' match='exact'>
-    <model fallback='allow'>SandyBridge</model>
+  <cpu>
+    <mode name='host-passthrough' supported='yes'/>
   </cpu>
   <clock offset='utc'>
     <timer name='rtc' tickpolicy='catchup'/>
