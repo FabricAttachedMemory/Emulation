@@ -1,0 +1,49 @@
+# Fabric Attached Memory Emulation configuration file for vmdebootstrap.  
+# The following values are crafted for the command line:
+# log, image, tarball, mirror, owner
+# vmdebootstrap versions: 1.6
+# Features: debootstraptops, system-networkd, apt-configure, use-uefi
+
+[config]
+debootstrapopts = variant=buildd
+verbose = True
+output =
+log-level = debug
+log-max = 0
+log-keep = 10
+log-mode = 0666
+dump-memory-profile = none
+memory-dump-interval = 300
+
+sparse = False
+size = 8G
+bootsize = 0
+boottype = ext2
+roottype = ext3
+foreign =
+
+arch = amd64
+distribution = stretch
+
+package = aptitude,apt-utils,attr,build-essential,ca-certificates,curl,gnupg,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,nfs-common,pciutils,psmisc,psutils,ssh,vim,wget
+custom-package =
+
+no-kernel = False
+sudo = True
+
+systemd-networkd=False
+root-password = iforgot
+lock-root-password = False
+
+customize = 
+hostname = nodeXX
+user = l4tm/iforgot
+serial-console = False
+serial-console-command = /sbin/getty -L ttyS0 115200 vt100
+
+# "True" creates sources.list.d/base.conf but it duplicates sources.list
+configure-apt = False
+
+extlinux = False
+mbr = False
+grub = True
