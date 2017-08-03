@@ -157,6 +157,8 @@ function verify_host_environment() {
     unset LD_LIBRARY_PATH
     export PATH="/bin:/usr/bin:/sbin:/usr/sbin"
 
+    # Another user submitted errata which may include
+    # bison dh-autoreconf flex gtk2-dev libglib2.0-dev livbirt-bin zlib1g-dev
     [ -x /bin/which -o -x /usr/bin/which ] || die "Missing command 'which'"
     NEED="awk brctl grep losetup qemu-img qemu-system-x86_64 virsh vmdebootstrap"
     [ "$SUDO" ] && NEED="$NEED sudo"
@@ -197,12 +199,12 @@ function verify_host_environment() {
     [ $LOOPS -gt 0 ] && die \
     	'losetup -al shows active loopback mounts, please clear them'
 
-    # verified working QEMU versions
-    declare -a VERIFIED_QEMU_VERSIONS=("2.6.0" "2.8.0" "2.8.1")
+    # verified working QEMU versions, checked only to "three digits"
+    VERIFIED_QEMU_VERSIONS="2.6.0 2.8.0 2.8.1"
     set -- `qemu-system-x86_64 -version`
     # Use regex to check the current version against VERIFIED_QEMU_VERSIONS.
-    # See man page for bash, 3.2.4.2 Conditional Constructs.
-    [[ ${VERIFIED_QEMU_VERSIONS[*]} =~ ${4:0:5} ]] || \
+    # See man page for bash, 3.2.4.2 Conditional Constructs.  No quotes.
+    [[ $VERIFIED_QEMU_VERSIONS =~ ${4:0:5} ]] || \
     	die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
     verify_QBH
 
@@ -420,8 +422,12 @@ function transmogrify_l4fame() {
 
     if [ "$FAME_L4FAME" ]; then		# Container experiment
     	L4FAME=$FAME_L4FAME
-    	echo "deb $L4FAME unstable main" | quiet $SUDO tee $SOURCES
+    	# echo "deb $L4FAME unstable main" | quiet $SUDO tee $SOURCES
+    	echo "deb $L4FAME catapult main" | quiet $SUDO tee $SOURCES
+	EXTRAS="l4tm-archive-keyring libpmem tm-zbridge tm-flush fam-atomic-driver tm-fuse-4.7.2 tm-libfuse tm-librarian"
     	# echo "deb-src $L4FAME unstable main" | quiet $SUDO tee -a $SOURCES
+	# L4TM and L4FAME container has suitable metapackage
+	L4FAME_KERNEL="linux-image-amd64"	
     else
     	L4FAME='http://downloads.linux.hpe.com/repo/l4fame'
     	echo "deb $L4FAME unstable/" | quiet $SUDO tee $SOURCES
@@ -440,6 +446,8 @@ function transmogrify_l4fame() {
     	quiet $SUDO chroot $MNT /bin/bash -c \
     		"'wget -O - https://db.debian.org/fetchkey.cgi?fingerprint=C383B778255613DFDB409D91DB221A6900000011 | apt-key add -'"
     	[ $? -ne 0 ] && die "L4FAME GPG key installation failed"
+	EXTRAS=l4fame-node
+	L4FAME_KERNEL="linux-image-4.8.0-l4fame+"
     fi
 
     echo "Contacting $L4FAME..."
@@ -447,14 +455,9 @@ function transmogrify_l4fame() {
     [ $? -ne 0 ] && die "Cannot reach $L4FAME"
 
     echo "Updating apt from $L4FAME..."
-    quiet $SUDO chroot $MNT apt-get update
+    quiet $SUDO chroot $MNT apt-get --allow-unauthenticated update
     [ $? -ne 0 ] && die "Cannot refresh repo sources and preferences"
 
-    # L4FAME does not come with a linux-image-amd64 metapackage to lock
-    # its kernel down.  An apt-get update will probably blow this away.
-    # L4FAME_KERNEL="linux-image-4.8.0-l4fame+"
-    L4FAME_KERNEL=`$SUDO chroot $MNT apt-cache search linux-image | awk '/linux-image-.*\+ / {print $1}'`
-    [ -z "$L4FAME_KERNEL" ] && die "Could not retrieve L4FAME kernel"
     install_one "$L4FAME_KERNEL"	# Always use quotes.
     [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
 
@@ -467,7 +470,7 @@ function transmogrify_l4fame() {
 
     common_config_files
 
-    install_one l4fame-node
+    for E in $EXTRAS; do install_one $E; done
     RET=$?
 
     mount_image
@@ -494,34 +497,25 @@ function manifest_template_image() {
     # an easy test but with later versions the arg list started getting
     # unwieldy.  Use multiple VMD files.  VERIFIED_XXX means it's been
     # tested at least once.  The lists are easier than numeric comparisons. 
+    # Use regex to check the current version against different lists.
 
     VMDVER=`vmdebootstrap --version`
+    declare -A VERIFIED
+    # --variant
+    VERIFIED['A']="0.2 0.5"	
+    # --debootstrapopts, use-uefi, systemd-networkd, configure-apt, esp-size
+    VERIFIED['B']="1.6"		
 
-    # Use regex to check the current version against different lists.
-    # See man page for bash, 3.2.4.2 Conditional Constructs.
-
-    declare -a VERIFIED_TMP=("0.2" "0.5")
-    if [[ ${VERIFIED_TMP[*]} =~ $VMDVER ]]; then
-    	SUFFIX=0.5
-    else 
-	declare -a VERIFIED_TMP=("1.0" "2.0")
-	if [[ ${VERIFIED_TMP[*]} =~ $VMDVER ]]; then
-    	    SUFFIX=0.5
-	else
-    	    die "vmdebootstrap $VMDVER has not been validated"
-	fi
-    fi
+    SUFFIX=NO_SUCH_VMD
+    for KEY in ${!VERIFIED[@]}; do
+    	# See man page for bash, 3.2.4.2 Conditional Constructs.  No quotes.
+    	[[ ${VERIFIED[$KEY]} =~ $VMDVER ]] && SUFFIX=$KEY && break
+    done
     VMDCFG="templates/vmd_$SUFFIX"
     [ ! -f $VMDCFG ] && die "vmdebootstrap $VMDVER is not implemented"
-    die $VMDCFG
+    quiet echo Using $VMDCFG
 
     VMD="$SUDO vmdebootstrap --no-default-configs --config=$VMDCFG"
-    $VMD --dump-config | grep -q '^variant ='
-    if [ $? -eq 0 ]; then
-    	VAROPT='--variant=buildd'
-    else
-    	VAROPT='--debootstrapopts=variant=buildd'
-    fi
 
     # vmdebootstrap calls debootstrap which makes a loopback mount for
     # the image under construction, like /dev/mapper/loop0p1.  It should
@@ -530,7 +524,7 @@ function manifest_template_image() {
     # interferes with subsequent runs, but doesn't complain properly.
     # Later versions of vmdebootstrap don't take both --image and --tarball.
 
-    $VMD $VAROPT --log=$LOG --image=$TEMPLATEIMG \
+    $VMD --log=$LOG --image=$TEMPLATEIMG \
     	--mirror=$FAME_MIRROR --owner=$SUDO_USER
     RET=$?
     quiet $SUDO chown $SUDO_USER "$FAME_OUTDIR/${HOSTUSERBASE}.*" 	# --owner bug
@@ -704,17 +698,20 @@ EODOIT
 function emit_libvirt_XML() {
     sep "\nvirsh/virt-manager files nodeXX.xml are in $FAME_OUTDIR"
     for N2 in `seq -f '%02.0f' $NODES`; do
-	NODE=$HOSTUSERBASE$N2
+	NODEXX=$HOSTUSERBASE$N2
 	# This pattern is recognized by tm-lfs as the implicit node number
-	MACADDR="$HPEOUI:${N2}:${N2}:${N2}"
-	QCOW=$FAME_OUTDIR/$NODE.qcow2
-	SRCXML=templates/node.intel.xml	# FIXME
-	NODEXML=$FAME_OUTDIR/$NODE.xml
+	MACADDRXX="$HPEOUI:${N2}:${N2}:${N2}"
+	QCOWXX=$FAME_OUTDIR/$NODEXX.qcow2
+	NODEXML=$FAME_OUTDIR/$NODEXX.xml
 
+	grep -q 'model name.*AMD' /proc/cpuinfo
+	[ $? -eq 0 ] && MODEL=amd || MODEL=intel
+	SRCXML=templates/node.$MODEL.xml
 	cp $SRCXML $NODEXML
-	sed -i -e "s!NODEXX!$NODE!" $NODEXML
-	sed -i -e "s!QCOWXX!$QCOW!" $NODEXML
-	sed -i -e "s!MACADDRXX!$MACADDR!" $NODEXML
+
+	sed -i -e "s!NODEXX!$NODEXX!" $NODEXML
+	sed -i -e "s!QCOWXX!$QCOWXX!" $NODEXML
+	sed -i -e "s!MACADDRXX!$MACADDRXX!" $NODEXML
 	sed -i -e "s!FAME_VDRAM!$FAME_VDRAM!" $NODEXML
 	sed -i -e "s!FAME_VCPUS!$FAME_VCPUS!" $NODEXML
 	sed -i -e "s!FAME_FAM!$FAME_FAM!" $NODEXML
