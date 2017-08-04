@@ -19,19 +19,21 @@ sparse = False
 size = 8G
 bootsize = 0
 boottype = ext2
-roottype = ext3
+roottype = ext4
 foreign =
 
 arch = amd64
-distribution = stretch
+distribution = jessie
 
 package = aptitude,apt-utils,attr,build-essential,ca-certificates,curl,gnupg,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,nfs-common,pciutils,psmisc,psutils,ssh,vim,wget
 custom-package =
 
+# Stretch 4.9 is later than ours
 no-kernel = False
 sudo = True
 
-systemd-networkd=False
+systemd-networkd = False
+enable-dhcp = True
 root-password = iforgot
 lock-root-password = False
 
