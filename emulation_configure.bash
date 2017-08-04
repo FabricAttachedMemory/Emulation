@@ -42,7 +42,7 @@ export FAME_L4FAME=${FAME_L4FAME:-}	# Experimental
 
 # A generic kernel metapackage is not created.  As we don't plan to update
 # the kernel much, it's reasonably safe to hardcode this.  Experts only.
-export FAME_KERNEL=${FAME_KERNEL:"linux-image-4.8.0-l4fame+"}
+export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.8.0-l4fame+"}
 
 ###########################################################################
 # Hardcoded to match content in external config files.  If any of these
@@ -615,6 +615,7 @@ function clone_VMs()
 	    yesno "Re-use $QCOW2"
 	    [ $? -eq 0 ] && echo "Keep existing $QCOW2" && continue
 	fi
+	$SUDO rm -f $QCOW2
 
 	echo "Customize $NEWHOST..."
     	NEWIMG="$FAME_OUTDIR/$NEWHOST.img"
@@ -635,7 +636,7 @@ function clone_VMs()
 
 	# FIXME but this is a reasonable assumption on a fresh vmdebootstrap.
 	quiet $SUDO chown -R 1000:1000 $DOTSSH
-	quiet $SUDO chmod 400 $DOTSSH/id_rsa.no_phrase
+	quiet $SUDO chmod 400 $DOTSSH/id_rsa.nophrase
 	quiet $SUDO tee $DOTSSH/config << EOSSHCONFIG
 ConnectTimeout 5
 StrictHostKeyChecking no
