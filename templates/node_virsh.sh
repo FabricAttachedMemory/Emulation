@@ -1,19 +1,12 @@
 #!/bin/bash
 
 # Manage the collection of nodeXX.xml files.
+
 DIRECTIVE=${1-}
 
-[ -z "$FAME_FAM" -o ! -f "$FAME_FAM" ] && die 'Missing $FAME_FAM' >&2 && exit 1
+[ -z "$FAME_FAM" -o ! -f "$FAME_FAM" ] && echo 'Missing $FAME_FAM' >&2 && exit 1
 
 set -u
-
-EXECUTION_DIRECTORY="$( dirname "${BASH_SOURCE[0]}" )"
-cd $EXECUTION_DIRECTORY
-NODESXML=`find ./ -name "node*.xml" -printf "%f\n"`
-NODESDOM=`echo $NODESXML | sed 's/\.xml//g'`
-
-[ `id -u` -ne 0 ] && SUDO="sudo -E" || SUDO=
-VIRSH="$SUDO virsh"
 
 ###########################################################################
 # If apparmor is loaded/enabled, then per
@@ -62,7 +55,30 @@ EOPROFILE
 }
 
 ###########################################################################
-# MAIN
+# MAIN.  Set a few globals, then check group membership.
+
+EXECUTION_DIRECTORY="$( dirname "${BASH_SOURCE[0]}" )"
+cd $EXECUTION_DIRECTORY
+NODESXML=`find ./ -name "node*.xml" -printf "%f\n"`
+NODESDOM=`echo $NODESXML | sed 's/\.xml//g'`
+
+[ `id -u` -ne 0 ] && SUDO="sudo -E" || SUDO=
+VIRSH="$SUDO virsh"
+
+if [[ ! `groups` =~ libvirt-qemu ]]; then
+	echo "You must belong to group libvirt-qemu" >&2
+	exit 1
+fi
+if [[ ! `ls -l $FAME_FAM` =~ libvirt-qemu ]]; then
+	echo "$FAME_FAM must belong to group libvirt-qemu" >&2
+	exit 1
+fi
+if [[ ! `ls -l $FAME_FAM` =~ ^-rw-rw-.* ]]; then
+	echo "$FAME_FAM must be RW by owner and group libvirt-qemu" >&2
+	exit 1
+fi
+
+# Wheres' the beef?
 
 case "$DIRECTIVE" in
 
