@@ -722,7 +722,7 @@ function emit_libvirt_XML() {
 	sed -i -e "s!FAME_FAM!$FAME_FAM!" $NODEXML
 	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $NODEXML
     done
-    cp node_virsh.sh $FAME_OUTDIR
+    cp templates/node_virsh.sh $FAME_OUTDIR
     echo "Change directory to $FAME_OUTDIR and run node_virsh.sh"
     return 0
 }
