@@ -40,6 +40,10 @@ export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 
 export FAME_L4FAME=${FAME_L4FAME:-}	# Experimental
 
+# A generic kernel metapackage is not created.  As we don't plan to update
+# the kernel much, it's reasonably safe to hardcode this.  Experts only.
+export FAME_KERNEL=${FAME_KERNEL:"linux-image-4.8.0-l4fame+"}
+
 ###########################################################################
 # Hardcoded to match content in external config files.  If any of these
 # is zero length you will probably trash your host OS.  Bullets, gun, feet.
@@ -195,7 +199,8 @@ function verify_host_environment() {
     [ $TMP -lt 1 ] && die "$FAME_FAM is less than 1G"
     [ $TMP -gt 256 ] && echo "$FAME_FAM is greater than 256G"	# QEMU limit
 
-    LOOPS=`$SUDO losetup -al | wc -l`
+    # This needs to become smarter, looking for stale kpartx devices
+    LOOPS=`$SUDO losetup -al | grep devicemapper | grep -v docker | wc -l`
     [ $LOOPS -gt 0 ] && die \
     	'losetup -al shows active loopback mounts, please clear them'
 
@@ -400,7 +405,7 @@ function transmogrify_l4fame() {
     SOURCES="$MNT/etc/apt/sources.list.d/l4fame.list"
     APTCONF="$MNT/etc/apt/apt.conf.d/00FAME.conf"
 
-    # FIXME: did vmdebootstrap do this?
+    # vmdebootstrap does not take care of this.
     if [ "$FAME_PROXY" ]; then
     	echo "Acquire::http::Proxy \"$FAME_PROXY\";" | quiet $SUDO tee $APTCONF
     fi
@@ -418,16 +423,17 @@ function transmogrify_l4fame() {
 
     echo "nameserver	$TORMS" | quiet $SUDO tee $RESOLVdotCONF
 
-    # Compute the location of the second repo
+    # Set the location of the second repo in the local variable L4FAME.
 
     if [ "$FAME_L4FAME" ]; then		# Container experiment
     	L4FAME=$FAME_L4FAME
-    	# echo "deb $L4FAME unstable main" | quiet $SUDO tee $SOURCES
-    	echo "deb $L4FAME catapult main" | quiet $SUDO tee $SOURCES
-	EXTRAS="l4tm-archive-keyring libpmem tm-zbridge tm-flush fam-atomic-driver tm-fuse-4.7.2 tm-libfuse tm-librarian"
-    	# echo "deb-src $L4FAME unstable main" | quiet $SUDO tee -a $SOURCES
-	# L4TM and L4FAME container has suitable metapackage
-	L4FAME_KERNEL="linux-image-amd64"	
+    	echo "deb $L4FAME testing main" | quiet $SUDO tee $SOURCES
+	if [ "$FAME_PROXY" ]; then	# Might need to override default
+	    if [[ $L4FAME =~ localhost ]]; then
+	        echo "Acquire::http::Proxy::torms \"DIRECT\";" | \
+		    quiet $SUDO tee -a $APTCONF
+	    fi
+	fi
     else
     	L4FAME='http://downloads.linux.hpe.com/repo/l4fame'
     	echo "deb $L4FAME unstable/" | quiet $SUDO tee $SOURCES
@@ -446,8 +452,6 @@ function transmogrify_l4fame() {
     	quiet $SUDO chroot $MNT /bin/bash -c \
     		"'wget -O - https://db.debian.org/fetchkey.cgi?fingerprint=C383B778255613DFDB409D91DB221A6900000011 | apt-key add -'"
     	[ $? -ne 0 ] && die "L4FAME GPG key installation failed"
-	EXTRAS=l4fame-node
-	L4FAME_KERNEL="linux-image-4.8.0-l4fame+"
     fi
 
     echo "Contacting $L4FAME..."
@@ -458,11 +462,11 @@ function transmogrify_l4fame() {
     quiet $SUDO chroot $MNT apt-get --allow-unauthenticated update
     [ $? -ne 0 ] && die "Cannot refresh repo sources and preferences"
 
-    install_one "$L4FAME_KERNEL"	# Always use quotes.
+    install_one "$FAME_KERNEL"	# Always use quotes.
     [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
 
-    quiet $SUDO chroot $MNT apt-mark hold "$L4FAME_KERNEL"
-    [ $? -ne 0 ] && echo "Cannot hold L4FAME kernel version $L4FAME_KERNEL"
+    quiet $SUDO chroot $MNT apt-mark hold "$FAME_KERNEL"
+    [ $? -ne 0 ] && echo "Cannot hold L4FAME kernel version $FAME_KERNEL"
 
     # Installing a kernel took info from /proc and /sys that set up
     # /etc/fstab, but it's from the host system.  Fix that, along with
@@ -470,7 +474,8 @@ function transmogrify_l4fame() {
 
     common_config_files
 
-    for E in $EXTRAS; do install_one $E; done
+    # All in one
+    for E in l4fame-node; do install_one $E; done
     RET=$?
 
     mount_image
@@ -495,7 +500,7 @@ function manifest_template_image() {
 
     # Different versions eat different arguments.  --dump-config used to be
     # an easy test but with later versions the arg list started getting
-    # unwieldy.  Use multiple VMD files.  VERIFIED_XXX means it's been
+    # unwieldy.  Use multiple VMD files.  VERIFIED_XXX means it's truly been
     # tested at least once.  The lists are easier than numeric comparisons. 
     # Use regex to check the current version against different lists.
 
