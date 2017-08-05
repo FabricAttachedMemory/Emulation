@@ -15,7 +15,9 @@ virsh will net-define with a loooong name, but choke on net-start.
     <dhcp>
       <!-- Google for "virsh net-update" for another way to do this.
            Obscure bug: if you use a range, it's length determines the
-	   number of hosts below that actually get handled. -->
+	   number of hosts below that actually get handled. dnsmasq
+	   only serves DNS for entries with active DHCP leases.  
+	   See the "dns" section that follows.  -->
       <host mac='48:50:42:01:01:01' name='node01' ip='192.168.42.1'/>
       <host mac='48:50:42:02:02:02' name='node02' ip='192.168.42.2'/>
       <host mac='48:50:42:03:03:03' name='node03' ip='192.168.42.3'/>
@@ -58,4 +60,50 @@ virsh will net-define with a loooong name, but choke on net-start.
       <host mac='48:50:42:40:40:40' name='node40' ip='192.168.42.40'/>
     </dhcp>
   </ip>
+  <!-- These entries in the xxxx.addn-hosts file and provide a DNS
+       response regardless of the DHCP lease status.  It's also a
+       good place to add the torms lookup. -->
+  <dns>
+      <host ip='192.168.42.254'><hostname>torms</hostname></host>
+      <host ip='192.168.42.1'><hostname>node1</hostname></host>
+      <host ip='192.168.42.2'><hostname>node2</hostname></host>
+      <host ip='192.168.42.3'><hostname>node3</hostname></host>
+      <host ip='192.168.42.4'><hostname>node4</hostname></host>
+      <host ip='192.168.42.5'><hostname>node5</hostname></host>
+      <host ip='192.168.42.6'><hostname>node6</hostname></host>
+      <host ip='192.168.42.7'><hostname>node7</hostname></host>
+      <host ip='192.168.42.8'><hostname>node8</hostname></host>
+      <host ip='192.168.42.9'><hostname>node9</hostname></host>
+      <host ip='192.168.42.10'><hostname>node10</hostname></host>
+      <host ip='192.168.42.11'><hostname>node11</hostname></host>
+      <host ip='192.168.42.12'><hostname>node12</hostname></host>
+      <host ip='192.168.42.13'><hostname>node13</hostname></host>
+      <host ip='192.168.42.14'><hostname>node14</hostname></host>
+      <host ip='192.168.42.15'><hostname>node15</hostname></host>
+      <host ip='192.168.42.16'><hostname>node16</hostname></host>
+      <host ip='192.168.42.17'><hostname>node17</hostname></host>
+      <host ip='192.168.42.18'><hostname>node18</hostname></host>
+      <host ip='192.168.42.19'><hostname>node19</hostname></host>
+      <host ip='192.168.42.20'><hostname>node20</hostname></host>
+      <host ip='192.168.42.21'><hostname>node21</hostname></host>
+      <host ip='192.168.42.22'><hostname>node22</hostname></host>
+      <host ip='192.168.42.23'><hostname>node23</hostname></host>
+      <host ip='192.168.42.24'><hostname>node24</hostname></host>
+      <host ip='192.168.42.25'><hostname>node25</hostname></host>
+      <host ip='192.168.42.26'><hostname>node26</hostname></host>
+      <host ip='192.168.42.27'><hostname>node27</hostname></host>
+      <host ip='192.168.42.28'><hostname>node28</hostname></host>
+      <host ip='192.168.42.29'><hostname>node29</hostname></host>
+      <host ip='192.168.42.30'><hostname>node30</hostname></host>
+      <host ip='192.168.42.31'><hostname>node31</hostname></host>
+      <host ip='192.168.42.32'><hostname>node32</hostname></host>
+      <host ip='192.168.42.33'><hostname>node33</hostname></host>
+      <host ip='192.168.42.34'><hostname>node34</hostname></host>
+      <host ip='192.168.42.35'><hostname>node35</hostname></host>
+      <host ip='192.168.42.36'><hostname>node36</hostname></host>
+      <host ip='192.168.42.37'><hostname>node37</hostname></host>
+      <host ip='192.168.42.38'><hostname>node38</hostname></host>
+      <host ip='192.168.42.39'><hostname>node39</hostname></host>
+      <host ip='192.168.42.40'><hostname>node40</hostname></host>
+  </dns>
 </network>
