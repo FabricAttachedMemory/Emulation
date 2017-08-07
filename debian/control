@@ -1,8 +1,8 @@
 Source: fame
 Section: misc
 Priority: optional
-Maintainer: Keith Packard <packard@hpe.com>
-Uploaders: Keith Packard <keithp@keithp.com>
+Maintainer: Rocky Craig <rocky.craig@hpe.com>
+Uploaders: Rocky Craig <rocky.craig@hpe.com>
 Origin: HPE
 Build-Depends: debhelper (>= 9)
 Standards-Version: 3.9.8
