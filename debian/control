@@ -1,0 +1,15 @@
+Source: fame
+Section: misc
+Priority: optional
+Maintainer: Rocky Craig <rocky.craig@hpe.com>
+Uploaders: Rocky Craig <rocky.craig@hpe.com>
+Origin: HPE
+Build-Depends: debhelper (>= 9)
+Standards-Version: 3.9.8
+
+Package: fame
+Architecture: all
+Depends: ${misc:Depends}
+Description: Fabric Attached Memory Emulation
+ Simulates a distributed fabric attached environment on a single
+ computer using virtual machines and shared memory
