@@ -203,10 +203,6 @@ function verify_host_environment() {
     [[ ${VERIFIED_QEMU_VERSIONS[*]} =~ ${4:0:5} ]] || die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
     verify_QBH
 
-    # check if system is running apparmor
-    set -- `sudo apparmor_status`
-    [ "loaded." == "$4" ] && die "apparmor is know to cause problems with this program, please consider disabling for this project"
-
     # Space for 2 raw image files, the tarball, all qcows, and slop
     [ ! -d "$FAME_OUTDIR" ] && die "$FAME_OUTDIR is not a directory"
     let GNEEDED=16+1+$NODES+1
