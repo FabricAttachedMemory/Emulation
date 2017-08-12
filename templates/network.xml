@@ -65,15 +65,15 @@ virsh will net-define with a loooong name, but choke on net-start.
        good place to add the torms lookup. -->
   <dns>
       <host ip='192.168.42.254'><hostname>torms</hostname></host>
-      <host ip='192.168.42.1'><hostname>node1</hostname></host>
-      <host ip='192.168.42.2'><hostname>node2</hostname></host>
-      <host ip='192.168.42.3'><hostname>node3</hostname></host>
-      <host ip='192.168.42.4'><hostname>node4</hostname></host>
-      <host ip='192.168.42.5'><hostname>node5</hostname></host>
-      <host ip='192.168.42.6'><hostname>node6</hostname></host>
-      <host ip='192.168.42.7'><hostname>node7</hostname></host>
-      <host ip='192.168.42.8'><hostname>node8</hostname></host>
-      <host ip='192.168.42.9'><hostname>node9</hostname></host>
+      <host ip='192.168.42.1'><hostname>node01</hostname></host>
+      <host ip='192.168.42.2'><hostname>node02</hostname></host>
+      <host ip='192.168.42.3'><hostname>node03</hostname></host>
+      <host ip='192.168.42.4'><hostname>node04</hostname></host>
+      <host ip='192.168.42.5'><hostname>node05</hostname></host>
+      <host ip='192.168.42.6'><hostname>node06</hostname></host>
+      <host ip='192.168.42.7'><hostname>node07</hostname></host>
+      <host ip='192.168.42.8'><hostname>node08</hostname></host>
+      <host ip='192.168.42.9'><hostname>node09</hostname></host>
       <host ip='192.168.42.10'><hostname>node10</hostname></host>
       <host ip='192.168.42.11'><hostname>node11</hostname></host>
       <host ip='192.168.42.12'><hostname>node12</hostname></host>
