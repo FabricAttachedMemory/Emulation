@@ -164,7 +164,7 @@ function verify_host_environment() {
     # Another user submitted errata which may include
     # bison dh-autoreconf flex gtk2-dev libglib2.0-dev livbirt-bin zlib1g-dev
     [ -x /bin/which -o -x /usr/bin/which ] || die "Missing command 'which'"
-    NEED="awk brctl grep losetup qemu-img qemu-system-x86_64 virsh vmdebootstrap"
+    NEED="awk brctl grep libvirtd losetup qemu-img qemu-system-x86_64 virsh vmdebootstrap"
     [ "$SUDO" ] && NEED="$NEED sudo"
     MISSING=
     for CMD in $NEED; do
@@ -244,7 +244,7 @@ function libvirt_bridge() {
     export VIRSH_LOG_FILE=$LOG
     VIRSH="$SUDO virsh"
     quiet $VIRSH connect
-    [ $? -ne 0 ] && die "'virsh connect' failed"
+    [ $? -ne 0 ] && die "'virsh connect' failed, is libvirtd running?"
     $VIRSH net-list --all | grep -q '^ Name.*State.*Autostart.*Persistent$'
     [ $? -ne 0 ] && die "virsh net-list command is not working as expected"
 
