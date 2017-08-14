@@ -382,15 +382,12 @@ function expose_proxy() {
 
 ###########################################################################
 # Add the packages for L4TM (Linux for The Machine) via the secondary,
-# partial repo of l4fame.  It was built with mini-dinstall so the
-# syntax in sources.list.d looks a little funky.
+# partial repo of l4fame.  APT::Get::AllowUnauthenticated is set.
 
 function install_one() {
     echo Installing $1
-    # quiet $SUDO chroot $MNT sh -c \
-    # $SUDO chroot $MNT sh -c \
-    quiet $SUDO chroot $MNT \
-	"apt-get --allow-unauthenticated -y --force-yes install '$1'"
+    quiet $SUDO chroot $MNT /bin/sh -c \
+	"DEBIAN_FRONTEND=noninteractive apt-get -y --force-yes install '$1'"
     return $?
 }
 
@@ -405,9 +402,13 @@ function transmogrify_l4fame() {
     SOURCES="$MNT/etc/apt/sources.list.d/l4fame.list"
     APTCONF="$MNT/etc/apt/apt.conf.d/00FAME.conf"
 
+    # Make allowances for container-based self-hosted repo
+    echo "APT::Get::AllowUnauthenticated \"True\";" | quiet $SUDO tee $APTCONF
+    echo "Acquire::http::Proxy::torms \"DIRECT\";" | quiet $SUDO tee -a $APTCONF
+
     # vmdebootstrap does not take care of this.
     if [ "$FAME_PROXY" ]; then
-    	echo "Acquire::http::Proxy \"$FAME_PROXY\";" | quiet $SUDO tee $APTCONF
+    	echo "Acquire::http::Proxy \"$FAME_PROXY\";" | quiet $SUDO tee -a $APTCONF
     fi
 
     #------------------------------------------------------------------
@@ -418,22 +419,21 @@ function transmogrify_l4fame() {
     # to the host resolver and do the right thing.
 
     RESOLVdotCONF=$MNT/etc/resolv.conf
-
     quiet $SUDO unlink $RESOLVdotCONF
-
     echo "nameserver	$TORMS" | quiet $SUDO tee $RESOLVdotCONF
 
     # Set the location of the second repo in the local variable L4FAME.
+    # A repo container on this host should be expressed as localhost.
 
-    if [ "$FAME_L4FAME" ]; then		# Container experiment
+    if [ "$FAME_L4FAME" ]; then		# Assume full repo, not minideb
     	L4FAME=$FAME_L4FAME
-    	echo "deb $L4FAME testing main" | quiet $SUDO tee $SOURCES
-	if [ "$FAME_PROXY" ]; then	# Might need to override default
+	if [ "$FAME_PROXY" ]; then	# Might need to override proxy
 	    if [[ $L4FAME =~ localhost ]]; then
-	        echo "Acquire::http::Proxy::torms \"DIRECT\";" | \
-		    quiet $SUDO tee -a $APTCONF
+		L4FAME=`echo $L4FAME | sed -e 's/localhost/torms/'`
+		echo L4FAME is now $L4FAME
 	    fi
 	fi
+    	echo "deb $L4FAME testing main" | quiet $SUDO tee $SOURCES
     else
     	L4FAME='http://downloads.linux.hpe.com/repo/l4fame'
     	echo "deb $L4FAME unstable/" | quiet $SUDO tee $SOURCES
