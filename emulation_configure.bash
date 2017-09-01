@@ -161,6 +161,15 @@ function verify_host_environment() {
     unset LD_LIBRARY_PATH
     export PATH="/bin:/usr/bin:/sbin:/usr/sbin"
 
+    # verified working QEMU versions, checked only to "three digits"
+    VERIFIED_QEMU_VERSIONS="2.6.0 2.8.0 2.8.1"
+    set -- `qemu-system-x86_64 -version`
+    # Use regex to check the current version against VERIFIED_QEMU_VERSIONS.
+    # See man page for bash, 3.2.4.2 Conditional Constructs.  No quotes.
+    [[ $VERIFIED_QEMU_VERSIONS =~ ${4:0:5} ]] || \
+        die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
+    verify_QBH
+
     # Another user submitted errata which may include
     # bison dh-autoreconf flex gtk2-dev libglib2.0-dev livbirt-bin zlib1g-dev
     [ -x /bin/which -o -x /usr/bin/which ] || die "Missing command 'which'"
@@ -168,17 +177,17 @@ function verify_host_environment() {
     [ "$SUDO" ] && NEED="$NEED sudo"
     MISSING=
     for CMD in $NEED; do
-	quiet which $CMD || MISSING="$CMD $MISSING"
+        quiet which $CMD || MISSING="$CMD $MISSING"
     done
     [ "$MISSING" ] && die "The following command(s) are needed:\n$MISSING"
     if [ "$USER" = root ]; then
-	SUDO_USER=${SUDO_USER:-root}
-	SUDO=
+        SUDO_USER=${SUDO_USER:-root}
+        SUDO=
     else
-    	sudo echo || die "sudo access is needed by this script."
-	MAYBE=`$SUDO env | grep SUDO_USER`
-	[ "$MAYBE" ] && eval $MAYBE
-	SUDO_USER=${SUDO_USER:-root}
+        sudo echo || die "sudo access is needed by this script."
+        MAYBE=`$SUDO env | grep SUDO_USER`
+        [ "$MAYBE" ] && eval $MAYBE
+        SUDO_USER=${SUDO_USER:-root}
     fi
 
     # Got RAM/DRAM for the CPU?  Earlier QEMU had trouble booting this
@@ -203,15 +212,6 @@ function verify_host_environment() {
     LOOPS=`$SUDO losetup -al | grep devicemapper | grep -v docker | wc -l`
     [ $LOOPS -gt 0 ] && die \
     	'losetup -al shows active loopback mounts, please clear them'
-
-    # verified working QEMU versions, checked only to "three digits"
-    VERIFIED_QEMU_VERSIONS="2.6.0 2.8.0 2.8.1"
-    set -- `qemu-system-x86_64 -version`
-    # Use regex to check the current version against VERIFIED_QEMU_VERSIONS.
-    # See man page for bash, 3.2.4.2 Conditional Constructs.  No quotes.
-    [[ $VERIFIED_QEMU_VERSIONS =~ ${4:0:5} ]] || \
-    	die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
-    verify_QBH
 
     # Space for 2 raw image files, the tarball, all qcows, and slop
     [ ! -d "$FAME_OUTDIR" ] && die "$FAME_OUTDIR is not a directory"
