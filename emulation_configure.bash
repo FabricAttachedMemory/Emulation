@@ -35,14 +35,17 @@ export FAME_FAM=${FAME_FAM:-}			# blank will throw an erro
 export FAME_MIRROR=${FAME_MIRROR:-http://ftp.us.debian.org/debian}
 
 export FAME_PROXY=${FAME_PROXY:-$http_proxy}
+http_proxy=${http_proxy:-}			# Yes, after FAME_PROXY
 
 export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 
-export FAME_L4FAME=${FAME_L4FAME:-}	# Experimental
+export FAME_L4FAME=${FAME_L4FAME:-}	# Can be from a (local) container
 
 # A generic kernel metapackage is not created.  As we don't plan to update
-# the kernel much, it's reasonably safe to hardcode this.  Experts only.
-export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.8.0-l4fame+"}
+# the kernel much, it's reasonably safe to hardcode this.  Version keeps
+# shell and apt regex from blowing up on the '+' and trying the debug package.
+# Experts only.
+export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.8.0-l4fame+=0.1-1"}
 
 ###########################################################################
 # Hardcoded to match content in external config files.  If any of these
@@ -56,7 +59,7 @@ typeset -r HPEOUI="48:50:42"
 typeset -r TEMPLATEIMG=$FAME_OUTDIR/${HOSTUSERBASE}_template.img
 typeset -r TARBALL=$FAME_OUTDIR/${HOSTUSERBASE}_template.tar
 typeset -r OCTETS123=192.168.42			# see fabric_emul.net.xml
-typeset -r TORMS=$OCTETS123.254
+typeset -r TORMSIP=$OCTETS123.254
 
 export DEBIAN_FRONTEND=noninteractive	# preserved by chroot
 export DEBCONF_NONINTERACTIVE_SEEN=true
@@ -139,12 +142,16 @@ EOMSG
 
 ###########################################################################
 # vmdebootstrap requires root, but first insure other commands exist.
-# Ass-u-me coreutils is installed.
+# Ass-u-me coreutils is installed.  Can't use die() until certain things
+# check out.
 
 [ `id -u` -ne 0 ] && SUDO="sudo -E" || SUDO=
 
 function verify_host_environment() {
     sep Verifying host environment
+
+    [ ! -d "$FAME_OUTDIR" ] && echo "$FAME_OUTDIR does not exist" >&2 && exit 1
+    [ ! -w "$FAME_OUTDIR" ] && echo "$FAME_OUTDIR is not writeable" >&2 && exit 1
 
     # Chicken and egg: sudo has not yet been verified
     if [ -f $LOG ]; then
@@ -386,9 +393,16 @@ function expose_proxy() {
 
 function install_one() {
     echo Installing $1
-    quiet $SUDO chroot $MNT /bin/sh -c \
-	"DEBIAN_FRONTEND=noninteractive apt-get -y --force-yes install '$1'"
-    return $?
+    quiet $SUDO chroot $MNT apt-cache show $1	# show, not search: exact match
+    RET=$?
+    [ $RET -ne 0 ] && echo "No candidate package for $1" >&2 && return $RET
+    quiet $SUDO chroot $MNT /bin/bash -c \"DEBIAN_FRONTEND=noninteractive; apt-get -y --force-yes install $1\"
+    RET=$?
+    [ $RET -ne 0 ] && echo "Install failed" >&2 && return $RET
+    $SUDO chroot $MNT dpkg -l $1
+    RET=$?
+    [ $RET -ne 0 ] && echo "dpkg -l after install failed" >&2 && return $RET
+    return 0
 }
 
 ###########################################################################
@@ -399,12 +413,12 @@ function install_one() {
 function transmogrify_l4fame() {
     mount_image $TEMPLATEIMG || return 1
     sep "Extending template with L4FAME: updating sources..."
-    SOURCES="$MNT/etc/apt/sources.list.d/l4fame.list"
     APTCONF="$MNT/etc/apt/apt.conf.d/00FAME.conf"
+    SOURCES="$MNT/etc/apt/sources.list.d/l4fame.list"
 
     # Make allowances for container-based self-hosted repo
     echo "APT::Get::AllowUnauthenticated \"True\";" | quiet $SUDO tee $APTCONF
-    echo "Acquire::http::Proxy::torms \"DIRECT\";" | quiet $SUDO tee -a $APTCONF
+    echo "Acquire::http::Proxy::$TORMSIP \"DIRECT\";" | quiet $SUDO tee -a $APTCONF
 
     # vmdebootstrap does not take care of this.
     if [ "$FAME_PROXY" ]; then
@@ -420,24 +434,21 @@ function transmogrify_l4fame() {
 
     RESOLVdotCONF=$MNT/etc/resolv.conf
     quiet $SUDO unlink $RESOLVdotCONF
-    echo "nameserver	$TORMS" | quiet $SUDO tee $RESOLVdotCONF
+    echo "nameserver	$TORMSIP" | quiet $SUDO tee $RESOLVdotCONF
 
-    # Set the location of the second repo in the local variable L4FAME.
     # A repo container on this host should be expressed as localhost.
 
     if [ "$FAME_L4FAME" ]; then		# Assume full repo, not minideb
-    	L4FAME=$FAME_L4FAME
-	if [ "$FAME_PROXY" ]; then	# Might need to override proxy
-	    if [[ $L4FAME =~ localhost ]]; then
-		L4FAME=`echo $L4FAME | sed -e 's/localhost/torms/'`
-		echo L4FAME is now $L4FAME
-	    fi
+	if [[ $FAME_L4FAME =~ localhost ]]; then
+	    USED_L4FAME=`echo $FAME_L4FAME | sed -e "s/localhost/$TORMSIP/"`
+	else
+	    USED_L4FAME=$FAME_L4FAME
 	fi
-    	echo "deb $L4FAME testing main" | quiet $SUDO tee $SOURCES
+    	echo "deb $USED_L4FAME testing main" | quiet $SUDO tee $SOURCES
     else
-    	L4FAME='http://downloads.linux.hpe.com/repo/l4fame'
-    	echo "deb $L4FAME unstable/" | quiet $SUDO tee $SOURCES
-    	echo "deb-src $L4FAME unstable/" | quiet $SUDO tee -a $SOURCES
+    	FAME_L4FAME='http://downloads.linux.hpe.com/repo/l4fame'
+    	echo "deb $FAME_L4FAME unstable/" | quiet $SUDO tee $SOURCES
+    	echo "deb-src $FAME_L4FAME unstable/" | quiet $SUDO tee -a $SOURCES
 
     	# Without a key, you get error message on upgrade:
     	# W: No sandbox user '_apt' on the system, can not drop privileges
@@ -454,11 +465,11 @@ function transmogrify_l4fame() {
     	[ $? -ne 0 ] && die "L4FAME GPG key installation failed"
     fi
 
-    echo "Contacting $L4FAME..."
-    quiet wget -O /dev/null $L4FAME > /dev/null 2>&1
-    [ $? -ne 0 ] && die "Cannot reach $L4FAME"
+    echo "Contacting $FAME_L4FAME..."
+    quiet wget -O /dev/null $FAME_L4FAME > /dev/null 2>&1
+    [ $? -ne 0 ] && die "Cannot reach $FAME_L4FAME"
 
-    echo "Updating apt from $L4FAME..."
+    echo "Updating apt from $FAME_L4FAME..."
     quiet $SUDO chroot $MNT apt-get --allow-unauthenticated update
     [ $? -ne 0 ] && die "Cannot refresh repo sources and preferences"
 
@@ -474,9 +485,11 @@ function transmogrify_l4fame() {
 
     common_config_files
 
-    # All in one
-    for E in l4fame-node; do install_one $E; done
-    RET=$?
+    for E in l4fame-node; do
+    	install_one $E
+	RET=$?
+	[ $RET -ne 0 ] &&  echo "$E failed" >&2 && break
+    done
 
     mount_image
 
@@ -579,7 +592,7 @@ function common_config_files() {
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 
-$TORMS	torms vmhost `hostname`
+$TORMSIP	torms vmhost `hostname`
 
 EOHOSTS
 
