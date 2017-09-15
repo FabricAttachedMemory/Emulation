@@ -45,7 +45,7 @@ export FAME_L4FAME=${FAME_L4FAME:-}	# Can be from a (local) container
 # the kernel much, it's reasonably safe to hardcode this.  Version keeps
 # shell and apt regex from blowing up on the '+' and trying the debug package.
 # Experts only.
-export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.8.0-l4fame+=0.1-1"}
+export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.8.0-l4fame+"}
 
 ###########################################################################
 # Hardcoded to match content in external config files.  If any of these
@@ -388,18 +388,27 @@ function expose_proxy() {
 }
 
 ###########################################################################
-# Add the packages for L4TM (Linux for The Machine) via the secondary,
-# partial repo of l4fame.  APT::Get::AllowUnauthenticated is set.
+# Add a package, most uses are fulfilled from the second FAME_L4FAME.
+# Remember APT::Get::AllowUnauthenticated was set earlier.
 
 function install_one() {
     echo Installing $1
-    quiet $SUDO chroot $MNT apt-cache show $1	# show, not search: exact match
+    quiet $SUDO chroot $MNT apt-cache show $1	# "search" is fuzzy match
     RET=$?
-    [ $RET -ne 0 ] && echo "No candidate package for $1" >&2 && return $RET
-    quiet $SUDO chroot $MNT /bin/bash -c \"DEBIAN_FRONTEND=noninteractive; apt-get -y --force-yes install $1\"
+    [ $RET -ne 0 ] && echo "No candidate matches $1" >&2 && return $RET
+
+    # Here's a day I'll never get back :-)  DEBIAN_FRONTEND env var is the
+    # easiest way to get this per-package (debconf-get/set would be needed).
+    # "man bash" for -c usage, it's not what you think.  The outer double
+    # quotes send a single arg to quiet() while allowing evaluation of $1.
+    # The inner single quotes are preserved across the chroot to create a
+    # single arg for "bash -c".
+    quiet $SUDO chroot $MNT /bin/bash -c \
+	"'DEBIAN_FRONTEND=noninteractive; apt-get -y --force-yes install $1'"
     RET=$?
     [ $RET -ne 0 ] && echo "Install failed" >&2 && return $RET
-    $SUDO chroot $MNT dpkg -l $1
+
+    quiet $SUDO chroot $MNT dpkg -l $1	# Paranoia
     RET=$?
     [ $RET -ne 0 ] && echo "dpkg -l after install failed" >&2 && return $RET
     return 0
