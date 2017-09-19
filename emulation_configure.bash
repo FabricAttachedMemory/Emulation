@@ -39,7 +39,7 @@ http_proxy=${http_proxy:-}			# Yes, after FAME_PROXY
 
 export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 
-export FAME_L4FAME=${FAME_L4FAME:-}	# Can be from a (local) container
+export FAME_L4FAME=${FAME_L4FAME:-http://l4fame.s3-website.us-east-2.amazonaws.com/}
 
 # A generic kernel metapackage is not created.  As we don't plan to update
 # the kernel much, it's reasonably safe to hardcode this.  Version keeps
