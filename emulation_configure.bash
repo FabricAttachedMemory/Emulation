@@ -506,6 +506,45 @@ function transmogrify_l4fame() {
 }
 
 ###########################################################################
+# Install docker.io from vendor repository.
+
+function install_docker() {
+
+    DOCKER_VERSION="17.03.2~ce-0~debian-jessie"
+    sep "Installing Docker $DOCKER_VERSION"
+
+    mount_image $TEMPLATEIMG || return 1
+
+    quiet $SUDO chroot $MNT apt-get update
+    [ $? -ne 0 ] && die "Error running apt-get update"
+
+    quiet $SUDO chroot $MNT apt-get install -y apt-transport-https ca-certificates curl gnupg2 software-properties-common
+    [ $? -ne 0 ] && die "Cannot install Docker prerequisites"
+
+    quiet $SUDO chroot $MNT sh -c "'curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo $ID)/gpg | apt-key add -'"
+    [ $? -ne 0 ] && die "Error adding Docker official GPG key"
+
+    # Use heredoc to avoid quoting hell for this command
+    quiet $SUDO chroot $MNT sh << 'EOF'
+        add-apt-repository \
+            "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") \
+        $(lsb_release -cs) \
+        stable"
+EOF
+    [ $? -ne 0 ] && die "Error adding Docker apt repository"
+
+    quiet $SUDO chroot $MNT apt-get update
+    [ $? -ne 0 ] && die "Error running apt-get update"
+
+    quiet $SUDO chroot $MNT apt-get install -y docker-ce=$DOCKER_VERSION
+    [ $? -ne 0 ] && die "Error installing Docker"
+
+    mount_image
+
+    return 0
+}
+
+###########################################################################
 # This takes about six minutes if the mirror is unproxied on a LAN.  YMMV.
 
 function manifest_template_image() {
@@ -560,6 +599,8 @@ function manifest_template_image() {
 	[ $BAD ] && echo "mount of $BAD may be a problem" | tee -a $LOG
     	die "Build of $TEMPLATEIMG failed"
     fi
+
+    install_docker || die "Installing Docker failed"
 
     validate_template_image || die "Validation of fresh $TEMPLATEIMG failed"
 
