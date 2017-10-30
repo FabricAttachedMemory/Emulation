@@ -544,6 +544,43 @@ EOF
     return 0
 }
 
+
+###########################################################################
+# Install kubernetes.io from vendor repository.
+
+function install_kubernetes() {
+
+    KUBERNETES_VERSION="1.8.2"
+    KUBEADM_VERSION="$KUBERNETES_VERSION-00"
+    KUBELET_VERSION="$KUBERNETES_VERSION-00"
+    KUBECTL_VERSION="$KUBERNETES_VERSION-00"
+    sep "Installing Kubernetes $KUBERNETES_VERSION"
+
+    mount_image $TEMPLATEIMG || return 1
+
+    quiet $SUDO chroot $MNT apt-get install -y apt-transport-https
+    [ $? -ne 0 ] && die "Cannot install kubeadm prerequisites"
+
+    quiet $SUDO chroot $MNT sh -c "'curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -'"
+    [ $? -ne 0 ] && die "Error adding Kubernetes official GPG key"
+
+    # Use xenial repository as no kubeadm build for jessie or stretch
+    quiet $SUDO chroot $MNT sh << 'EOF'
+        apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+EOF
+    [ $? -ne 0 ] && die "Error adding Kubernetes apt repository"
+
+    quiet $SUDO chroot $MNT apt-get update
+    [ $? -ne 0 ] && die "Error running apt-get update"
+
+    quiet $SUDO chroot $MNT apt-get install -y kubelet=$KUBELET_VERSION kubeadm=$KUBEADM_VERSION kubectl=$KUBECTL_VERSION
+    [ $? -ne 0 ] && die "Error installing kubelet, kubeadm and kubectl"
+
+    mount_image
+
+    return 0
+}
+
 ###########################################################################
 # This takes about six minutes if the mirror is unproxied on a LAN.  YMMV.
 
@@ -601,6 +638,8 @@ function manifest_template_image() {
     fi
 
     install_docker || die "Installing Docker failed"
+
+    install_kubernetes || die "Installing Kubernetes failed"
 
     validate_template_image || die "Validation of fresh $TEMPLATEIMG failed"
 
