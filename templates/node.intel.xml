@@ -1,8 +1,5 @@
 <domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
   <name>NODEXX</name>
-  <memory unit='KiB'>FAME_VDRAM</memory>
-  <currentMemory unit='KiB'>FAME_VDRAM</currentMemory>
-  <vcpu placement='static'>FAME_VCPUS</vcpu>
   <resource>
     <partition>/machine</partition>
   </resource>
@@ -10,14 +7,14 @@
     <type arch='x86_64' machine='pc-i440fx-2.6'>hvm</type>
     <boot dev='hd'/>
   </os>
-  <features>
-    <acpi/>
-    <apic/>
-    <pae/>
-  </features>
-  <cpu mode='custom' match='exact'>
-    <model fallback='allow'>SandyBridge</model>
+
+  <cpu mode='host-passthrough'>
   </cpu>
+  <vcpu placement='static'>FAME_VCPUS</vcpu>
+
+  <memory unit='KiB'>FAME_VDRAM</memory>
+  <currentMemory unit='KiB'>FAME_VDRAM</currentMemory>
+
   <clock offset='utc'>
     <timer name='rtc' tickpolicy='catchup'/>
     <timer name='pit' tickpolicy='delay'/>
