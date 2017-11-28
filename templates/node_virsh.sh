@@ -108,7 +108,8 @@ status)
 stop|shutdown)	# Get id_rsa.nophrase as your identity file
 	N=1
 	for NODE in $NODESDOM; do
-		IP="192.168.42.$N"
+                # First three octets substituted by emulation_configure.sh
+		IP="OCTETS123.$N"
 		echo -n "$NODE ($IP): "
 		ssh l4tm@$IP sudo shutdown -h 0
 		let N+=1

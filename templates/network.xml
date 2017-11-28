@@ -11,99 +11,99 @@ virsh will net-define with a loooong name, but choke on net-start.
   </forward>
   <bridge name='NETWORK' stp='off' delay='0'/>
   <mac address='52:54:48:50:42:fe'/>
-  <ip address='192.168.42.254' netmask='255.255.255.0'>
+  <ip address='OCTETS123.254' netmask='255.255.255.0'>
     <dhcp>
       <!-- Google for "virsh net-update" for another way to do this.
            Obscure bug: if you use a range, it's length determines the
 	   number of hosts below that actually get handled. dnsmasq
 	   only serves DNS for entries with active DHCP leases.  
 	   See the "dns" section that follows.  -->
-      <host mac='48:50:42:01:01:01' name='node01' ip='192.168.42.1'/>
-      <host mac='48:50:42:02:02:02' name='node02' ip='192.168.42.2'/>
-      <host mac='48:50:42:03:03:03' name='node03' ip='192.168.42.3'/>
-      <host mac='48:50:42:04:04:04' name='node04' ip='192.168.42.4'/>
-      <host mac='48:50:42:05:05:05' name='node05' ip='192.168.42.5'/>
-      <host mac='48:50:42:06:06:06' name='node06' ip='192.168.42.6'/>
-      <host mac='48:50:42:07:07:07' name='node07' ip='192.168.42.7'/>
-      <host mac='48:50:42:08:08:08' name='node08' ip='192.168.42.8'/>
-      <host mac='48:50:42:09:09:09' name='node09' ip='192.168.42.9'/>
-      <host mac='48:50:42:10:10:10' name='node10' ip='192.168.42.10'/>
-      <host mac='48:50:42:11:11:11' name='node11' ip='192.168.42.11'/>
-      <host mac='48:50:42:12:12:12' name='node12' ip='192.168.42.12'/>
-      <host mac='48:50:42:13:13:13' name='node13' ip='192.168.42.13'/>
-      <host mac='48:50:42:14:14:14' name='node14' ip='192.168.42.14'/>
-      <host mac='48:50:42:15:15:15' name='node15' ip='192.168.42.15'/>
-      <host mac='48:50:42:16:16:16' name='node16' ip='192.168.42.16'/>
-      <host mac='48:50:42:17:17:17' name='node17' ip='192.168.42.17'/>
-      <host mac='48:50:42:18:18:18' name='node18' ip='192.168.42.18'/>
-      <host mac='48:50:42:19:19:19' name='node19' ip='192.168.42.19'/>
-      <host mac='48:50:42:20:20:20' name='node20' ip='192.168.42.20'/>
-      <host mac='48:50:42:21:21:21' name='node21' ip='192.168.42.21'/>
-      <host mac='48:50:42:22:22:22' name='node22' ip='192.168.42.22'/>
-      <host mac='48:50:42:23:23:23' name='node23' ip='192.168.42.23'/>
-      <host mac='48:50:42:24:24:24' name='node24' ip='192.168.42.24'/>
-      <host mac='48:50:42:25:25:25' name='node25' ip='192.168.42.25'/>
-      <host mac='48:50:42:26:26:26' name='node26' ip='192.168.42.26'/>
-      <host mac='48:50:42:27:27:27' name='node27' ip='192.168.42.27'/>
-      <host mac='48:50:42:28:28:28' name='node28' ip='192.168.42.28'/>
-      <host mac='48:50:42:29:29:29' name='node29' ip='192.168.42.29'/>
-      <host mac='48:50:42:30:30:30' name='node30' ip='192.168.42.30'/>
-      <host mac='48:50:42:31:31:31' name='node31' ip='192.168.42.31'/>
-      <host mac='48:50:42:32:32:32' name='node32' ip='192.168.42.32'/>
-      <host mac='48:50:42:33:33:33' name='node33' ip='192.168.42.33'/>
-      <host mac='48:50:42:34:34:34' name='node34' ip='192.168.42.34'/>
-      <host mac='48:50:42:35:35:35' name='node35' ip='192.168.42.35'/>
-      <host mac='48:50:42:36:36:36' name='node36' ip='192.168.42.36'/>
-      <host mac='48:50:42:37:37:37' name='node37' ip='192.168.42.37'/>
-      <host mac='48:50:42:38:38:38' name='node38' ip='192.168.42.38'/>
-      <host mac='48:50:42:39:39:39' name='node39' ip='192.168.42.39'/>
-      <host mac='48:50:42:40:40:40' name='node40' ip='192.168.42.40'/>
+      <host mac='48:50:42:01:01:01' name='node01' ip='OCTETS123.1'/>
+      <host mac='48:50:42:02:02:02' name='node02' ip='OCTETS123.2'/>
+      <host mac='48:50:42:03:03:03' name='node03' ip='OCTETS123.3'/>
+      <host mac='48:50:42:04:04:04' name='node04' ip='OCTETS123.4'/>
+      <host mac='48:50:42:05:05:05' name='node05' ip='OCTETS123.5'/>
+      <host mac='48:50:42:06:06:06' name='node06' ip='OCTETS123.6'/>
+      <host mac='48:50:42:07:07:07' name='node07' ip='OCTETS123.7'/>
+      <host mac='48:50:42:08:08:08' name='node08' ip='OCTETS123.8'/>
+      <host mac='48:50:42:09:09:09' name='node09' ip='OCTETS123.9'/>
+      <host mac='48:50:42:10:10:10' name='node10' ip='OCTETS123.10'/>
+      <host mac='48:50:42:11:11:11' name='node11' ip='OCTETS123.11'/>
+      <host mac='48:50:42:12:12:12' name='node12' ip='OCTETS123.12'/>
+      <host mac='48:50:42:13:13:13' name='node13' ip='OCTETS123.13'/>
+      <host mac='48:50:42:14:14:14' name='node14' ip='OCTETS123.14'/>
+      <host mac='48:50:42:15:15:15' name='node15' ip='OCTETS123.15'/>
+      <host mac='48:50:42:16:16:16' name='node16' ip='OCTETS123.16'/>
+      <host mac='48:50:42:17:17:17' name='node17' ip='OCTETS123.17'/>
+      <host mac='48:50:42:18:18:18' name='node18' ip='OCTETS123.18'/>
+      <host mac='48:50:42:19:19:19' name='node19' ip='OCTETS123.19'/>
+      <host mac='48:50:42:20:20:20' name='node20' ip='OCTETS123.20'/>
+      <host mac='48:50:42:21:21:21' name='node21' ip='OCTETS123.21'/>
+      <host mac='48:50:42:22:22:22' name='node22' ip='OCTETS123.22'/>
+      <host mac='48:50:42:23:23:23' name='node23' ip='OCTETS123.23'/>
+      <host mac='48:50:42:24:24:24' name='node24' ip='OCTETS123.24'/>
+      <host mac='48:50:42:25:25:25' name='node25' ip='OCTETS123.25'/>
+      <host mac='48:50:42:26:26:26' name='node26' ip='OCTETS123.26'/>
+      <host mac='48:50:42:27:27:27' name='node27' ip='OCTETS123.27'/>
+      <host mac='48:50:42:28:28:28' name='node28' ip='OCTETS123.28'/>
+      <host mac='48:50:42:29:29:29' name='node29' ip='OCTETS123.29'/>
+      <host mac='48:50:42:30:30:30' name='node30' ip='OCTETS123.30'/>
+      <host mac='48:50:42:31:31:31' name='node31' ip='OCTETS123.31'/>
+      <host mac='48:50:42:32:32:32' name='node32' ip='OCTETS123.32'/>
+      <host mac='48:50:42:33:33:33' name='node33' ip='OCTETS123.33'/>
+      <host mac='48:50:42:34:34:34' name='node34' ip='OCTETS123.34'/>
+      <host mac='48:50:42:35:35:35' name='node35' ip='OCTETS123.35'/>
+      <host mac='48:50:42:36:36:36' name='node36' ip='OCTETS123.36'/>
+      <host mac='48:50:42:37:37:37' name='node37' ip='OCTETS123.37'/>
+      <host mac='48:50:42:38:38:38' name='node38' ip='OCTETS123.38'/>
+      <host mac='48:50:42:39:39:39' name='node39' ip='OCTETS123.39'/>
+      <host mac='48:50:42:40:40:40' name='node40' ip='OCTETS123.40'/>
     </dhcp>
   </ip>
   <!-- These entries in the xxxx.addn-hosts file and provide a DNS
        response regardless of the DHCP lease status.  It's also a
        good place to add the torms lookup. -->
   <dns>
-      <host ip='192.168.42.254'><hostname>torms</hostname></host>
-      <host ip='192.168.42.1'><hostname>node01</hostname></host>
-      <host ip='192.168.42.2'><hostname>node02</hostname></host>
-      <host ip='192.168.42.3'><hostname>node03</hostname></host>
-      <host ip='192.168.42.4'><hostname>node04</hostname></host>
-      <host ip='192.168.42.5'><hostname>node05</hostname></host>
-      <host ip='192.168.42.6'><hostname>node06</hostname></host>
-      <host ip='192.168.42.7'><hostname>node07</hostname></host>
-      <host ip='192.168.42.8'><hostname>node08</hostname></host>
-      <host ip='192.168.42.9'><hostname>node09</hostname></host>
-      <host ip='192.168.42.10'><hostname>node10</hostname></host>
-      <host ip='192.168.42.11'><hostname>node11</hostname></host>
-      <host ip='192.168.42.12'><hostname>node12</hostname></host>
-      <host ip='192.168.42.13'><hostname>node13</hostname></host>
-      <host ip='192.168.42.14'><hostname>node14</hostname></host>
-      <host ip='192.168.42.15'><hostname>node15</hostname></host>
-      <host ip='192.168.42.16'><hostname>node16</hostname></host>
-      <host ip='192.168.42.17'><hostname>node17</hostname></host>
-      <host ip='192.168.42.18'><hostname>node18</hostname></host>
-      <host ip='192.168.42.19'><hostname>node19</hostname></host>
-      <host ip='192.168.42.20'><hostname>node20</hostname></host>
-      <host ip='192.168.42.21'><hostname>node21</hostname></host>
-      <host ip='192.168.42.22'><hostname>node22</hostname></host>
-      <host ip='192.168.42.23'><hostname>node23</hostname></host>
-      <host ip='192.168.42.24'><hostname>node24</hostname></host>
-      <host ip='192.168.42.25'><hostname>node25</hostname></host>
-      <host ip='192.168.42.26'><hostname>node26</hostname></host>
-      <host ip='192.168.42.27'><hostname>node27</hostname></host>
-      <host ip='192.168.42.28'><hostname>node28</hostname></host>
-      <host ip='192.168.42.29'><hostname>node29</hostname></host>
-      <host ip='192.168.42.30'><hostname>node30</hostname></host>
-      <host ip='192.168.42.31'><hostname>node31</hostname></host>
-      <host ip='192.168.42.32'><hostname>node32</hostname></host>
-      <host ip='192.168.42.33'><hostname>node33</hostname></host>
-      <host ip='192.168.42.34'><hostname>node34</hostname></host>
-      <host ip='192.168.42.35'><hostname>node35</hostname></host>
-      <host ip='192.168.42.36'><hostname>node36</hostname></host>
-      <host ip='192.168.42.37'><hostname>node37</hostname></host>
-      <host ip='192.168.42.38'><hostname>node38</hostname></host>
-      <host ip='192.168.42.39'><hostname>node39</hostname></host>
-      <host ip='192.168.42.40'><hostname>node40</hostname></host>
+      <host ip='OCTETS123.254'><hostname>torms</hostname></host>
+      <host ip='OCTETS123.1'><hostname>node01</hostname></host>
+      <host ip='OCTETS123.2'><hostname>node02</hostname></host>
+      <host ip='OCTETS123.3'><hostname>node03</hostname></host>
+      <host ip='OCTETS123.4'><hostname>node04</hostname></host>
+      <host ip='OCTETS123.5'><hostname>node05</hostname></host>
+      <host ip='OCTETS123.6'><hostname>node06</hostname></host>
+      <host ip='OCTETS123.7'><hostname>node07</hostname></host>
+      <host ip='OCTETS123.8'><hostname>node08</hostname></host>
+      <host ip='OCTETS123.9'><hostname>node09</hostname></host>
+      <host ip='OCTETS123.10'><hostname>node10</hostname></host>
+      <host ip='OCTETS123.11'><hostname>node11</hostname></host>
+      <host ip='OCTETS123.12'><hostname>node12</hostname></host>
+      <host ip='OCTETS123.13'><hostname>node13</hostname></host>
+      <host ip='OCTETS123.14'><hostname>node14</hostname></host>
+      <host ip='OCTETS123.15'><hostname>node15</hostname></host>
+      <host ip='OCTETS123.16'><hostname>node16</hostname></host>
+      <host ip='OCTETS123.17'><hostname>node17</hostname></host>
+      <host ip='OCTETS123.18'><hostname>node18</hostname></host>
+      <host ip='OCTETS123.19'><hostname>node19</hostname></host>
+      <host ip='OCTETS123.20'><hostname>node20</hostname></host>
+      <host ip='OCTETS123.21'><hostname>node21</hostname></host>
+      <host ip='OCTETS123.22'><hostname>node22</hostname></host>
+      <host ip='OCTETS123.23'><hostname>node23</hostname></host>
+      <host ip='OCTETS123.24'><hostname>node24</hostname></host>
+      <host ip='OCTETS123.25'><hostname>node25</hostname></host>
+      <host ip='OCTETS123.26'><hostname>node26</hostname></host>
+      <host ip='OCTETS123.27'><hostname>node27</hostname></host>
+      <host ip='OCTETS123.28'><hostname>node28</hostname></host>
+      <host ip='OCTETS123.29'><hostname>node29</hostname></host>
+      <host ip='OCTETS123.30'><hostname>node30</hostname></host>
+      <host ip='OCTETS123.31'><hostname>node31</hostname></host>
+      <host ip='OCTETS123.32'><hostname>node32</hostname></host>
+      <host ip='OCTETS123.33'><hostname>node33</hostname></host>
+      <host ip='OCTETS123.34'><hostname>node34</hostname></host>
+      <host ip='OCTETS123.35'><hostname>node35</hostname></host>
+      <host ip='OCTETS123.36'><hostname>node36</hostname></host>
+      <host ip='OCTETS123.37'><hostname>node37</hostname></host>
+      <host ip='OCTETS123.38'><hostname>node38</hostname></host>
+      <host ip='OCTETS123.39'><hostname>node39</hostname></host>
+      <host ip='OCTETS123.40'><hostname>node40</hostname></host>
   </dns>
 </network>
