@@ -52,14 +52,14 @@ export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.8.0-l4fame+"}
 # Hardcoded to match content in external config files.  If any of these
 # is zero length you will probably trash your host OS.  Bullets, gun, feet.
 
-typeset -r HOSTUSERBASE=node
+typeset -r HOSTUSERBASE=${FAME_HOSTUSERBASE:-"node"}
 typeset -r PROJECT=${HOSTUSERBASE}_emulation
 typeset -r LOG=$FAME_OUTDIR/$PROJECT.log
 typeset -r NETWORK=${HOSTUSERBASE}_emul		# libvirt name length limits
 typeset -r HPEOUI="48:50:42"
 typeset -r TEMPLATEIMG=$FAME_OUTDIR/${HOSTUSERBASE}_template.img
 typeset -r TARBALL=$FAME_OUTDIR/${HOSTUSERBASE}_template.tar
-typeset -r OCTETS123=192.168.42			# see fabric_emul.net.xml
+typeset -r OCTETS123=${FAME_OCTETS123:-"192.168.42"}	# see fabric_emul.net.xml
 typeset -r TORMSIP=$OCTETS123.254
 
 export DEBIAN_FRONTEND=noninteractive	# preserved by chroot
@@ -753,10 +753,10 @@ function emit_libvirt_XML() {
 	sed -i -e "s!NETWORK!$NETWORK!" $NODEXML
     done
 
-    cp templates/node_virsh.sh $FAME_OUTDIR
-    sed -i -e "s!OCTETS123!$OCTETS123!" $FAME_OUTDIR/node_virsh.sh
+    cp templates/node_virsh.sh $FAME_OUTDIR/${HOSTUSERBASE}_virsh.sh
+    sed -i -e "s!OCTETS123!$OCTETS123!" $FAME_OUTDIR/${HOSTUSERBASE}_virsh.sh
 
-    echo "Change directory to $FAME_OUTDIR and run node_virsh.sh"
+    echo "Change directory to $FAME_OUTDIR and run ${HOSTUSERBASE}_virsh.sh"
     return 0
 }
 
