@@ -262,8 +262,11 @@ function libvirt_bridge() {
     done
 
     # virsh will define a net with a loooong name, but fail on starting it.
-    quiet $VIRSH net-define $NETXML
-    [ $? -ne 0 ] && die "Cannot define the network $NETWORK:\n`cat $NETXML`"
+    NETXML_TMP=`mktemp`
+    sed "s/NETWORK/$NETWORK/g" < $NETXML > $NETXML_TMP
+    quiet $VIRSH net-define $NETXML_TMP
+    [ $? -ne 0 ] && die "Cannot define the network $NETWORK:\n`cat $NETXML_TMP`"
+    rm -f $NETXML_TMP
 
     for CMD in net-start net-autostart; do
 	quiet $VIRSH $CMD $NETWORK
@@ -745,6 +748,7 @@ function emit_libvirt_XML() {
 	sed -i -e "s!FAME_VCPUS!$FAME_VCPUS!" $NODEXML
 	sed -i -e "s!FAME_FAM!$FAME_FAM!" $NODEXML
 	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $NODEXML
+	sed -i -e "s!NETWORK!$NETWORK!" $NODEXML
     done
     cp templates/node_virsh.sh $FAME_OUTDIR
     echo "Change directory to $FAME_OUTDIR and run node_virsh.sh"
