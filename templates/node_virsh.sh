@@ -59,7 +59,7 @@ EOPROFILE
 
 EXECUTION_DIRECTORY="$( dirname "${BASH_SOURCE[0]}" )"
 cd $EXECUTION_DIRECTORY
-NODESXML=`find ./ -name "node*.xml" -printf "%f\n"`
+NODESXML=`find ./ -name "HOSTUSERBASE*.xml" -printf "%f\n"`
 NODESDOM=`echo $NODESXML | sed 's/\.xml//g'`
 
 [ `id -u` -ne 0 ] && SUDO="sudo -E" || SUDO=

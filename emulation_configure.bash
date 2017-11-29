@@ -755,6 +755,7 @@ function emit_libvirt_XML() {
 
     cp templates/node_virsh.sh $FAME_OUTDIR/${HOSTUSERBASE}_virsh.sh
     sed -i -e "s!OCTETS123!$OCTETS123!" $FAME_OUTDIR/${HOSTUSERBASE}_virsh.sh
+    sed -i -e "s!HOSTUSERBASE!$HOSTUSERBASE!" $FAME_OUTDIR/${HOSTUSERBASE}_virsh.sh
 
     echo "Change directory to $FAME_OUTDIR and run ${HOSTUSERBASE}_virsh.sh"
     return 0
