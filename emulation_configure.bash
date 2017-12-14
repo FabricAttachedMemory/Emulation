@@ -46,7 +46,7 @@ export FAME_L4FAME=${FAME_L4FAME:-http://downloads.linux.hpe.com/repo/l4fame/}
 # the kernel much, it's reasonably safe to hardcode this.  Version keeps
 # shell and apt regex from blowing up on the '+' and trying the debug package.
 # Experts only.
-export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.8.0-l4fame+"}
+export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.14.0-l4fame+"}
 
 ###########################################################################
 # Hardcoded to match content in external config files.  If any of these
@@ -192,10 +192,10 @@ function verify_host_environment() {
     # Got RAM/DRAM for the CPU?  Earlier QEMU had trouble booting this
     # environment in less than this space, could have been page tables
     # for larger IVSHMEM.  FIXME: force KiB values, verify against FAM_SIZE.
-    [ $FAME_VDRAM -lt 786432 ] && echo "FAME_VDRAM=$FAME_VDRAM KiB is too small" >&2 && exit 1
+    [ $FAME_VDRAM -lt 786432 ] && die "FAME_VDRAM=$FAME_VDRAM KiB is too small"
     let TMP=${FAME_VDRAM}*${NODES}
     set -- `head -1 /proc/meminfo`
-    [ $2 -lt $TMP ] && echo "Insufficient real RAM for $NODES nodes of $FAME_VDRAM KiB each" >&2 && exit 1
+    [ $2 -lt $TMP ] && die "Insufficient real RAM for $NODES nodes of $FAME_VDRAM KiB each"
 
     # Got FAM?
     [ -z "$FAME_FAM" ] && die "FAME_FAM variable must be specified"
@@ -228,7 +228,7 @@ function verify_host_environment() {
     TMPFREE=`df "$FAME_OUTDIR" | awk '/^\// {print $4}'`
     [ $TMPFREE -lt $KNEEDED ] && die "$FAME_OUTDIR has less than $GNEEDED G free"
 
-    echo_environment > $FAME_OUTDIR/env.sh	# For next time
+    echo_environment EXPORT > $FAME_OUTDIR/env.sh	# For next time
 
     return 0
 }
@@ -754,9 +754,14 @@ function emit_libvirt_XML() {
 ###########################################################################
 
 function echo_environment() {
-	FAME_FAM=${FAME_FAM:-"NEEDS TO BE SET!"}
-	echo "http_proxy=$http_proxy"
-	env | grep FAME_ | sort
+    FAME_FAM=${FAME_FAM:-"NEEDS TO BE SET!"}
+    echo "http_proxy=$http_proxy"
+    _VARS=`env | grep FAME_ | sort`
+    for V in $_VARS; do echo $V; done
+    if [ $# -gt 0 ]; then
+	_VARS=`cut -d= -f1 <<< $_VARS`
+	for V in $_VARS; do echo "export $V"; done
+    fi
 }
 
 ###########################################################################
