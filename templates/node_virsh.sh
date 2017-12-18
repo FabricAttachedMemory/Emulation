@@ -123,5 +123,5 @@ undefine)
 
 esac
 
-echo "usage: `basename $0` [ define | start | stop | status | undefine ]"
+echo "usage: `basename $0` [ define | destroy | start | status | shutdown | stop | undefine ]"
 exit 0
