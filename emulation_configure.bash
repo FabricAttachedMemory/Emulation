@@ -40,7 +40,7 @@ http_proxy=${http_proxy:-}			# Yes, after FAME_PROXY
 export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 
 # export FAME_L4FAME=${FAME_L4FAME:-http://l4fame.s3-website.us-east-2.amazonaws.com/}
-export FAME_L4FAME=${FAME_L4FAME:-http://downloads.linux.hpe.com/repo/l4fame/}
+export FAME_L4FAME=${FAME_L4FAME:-http://downloads.linux.hpe.com/repo/l4fame/Debian}
 
 # A generic kernel metapackage is not created.  As we don't plan to update
 # the kernel much, it's reasonably safe to hardcode this.  Version keeps
@@ -197,15 +197,24 @@ function verify_host_environment() {
     set -- `head -1 /proc/meminfo`
     [ $2 -lt $TMP ] && die "Insufficient real RAM for $NODES nodes of $FAME_VDRAM KiB each"
 
-    # Got FAM?
+    # Got FAM?  And is it sized correctly?
     [ -z "$FAME_FAM" ] && die "FAME_FAM variable must be specified"
     [ ! -f "$FAME_FAM" ] && die "$FAME_FAM not found"
     T=`stat -c %s "$FAME_FAM"`
+    # Shell boolean values are inverse of Python
+    python3 -c "import math; e=math.log2($T); exit(not(e == int(e)))"
+    [ $? -ne 0 ] && die "$FAME_FAM size $T is not a power of 2"
+
+    # QEMU limit is a function of the (pass-through) host CPU and available
+    # memory (about half of true free RAM plus a fudge factor?).  Max size
+    # is an ADVISORY because it may work.  This is coupled with a new
+    # check in lfs_shadow.py; if the value is too big, IVSHMEM is bad
+    # from the guest point of view.
     let TMP=$T/1024/1024/1024
     export FAME_SIZE=${TMP}G
     quiet echo "$FAME_FAM = $FAME_SIZE"
-    [ $TMP -lt 1 ] && die "$FAME_FAM is less than 1G"
-    [ $TMP -gt 256 ] && echo "$FAME_FAM is greater than 256G"	# QEMU limit
+    [ $TMP -lt 1 ] && die "$FAME_FAM size $T is less than 1G"
+    [ $TMP -gt 512 ] && echo "$FAME_FAM size $TMP is greater than 512G"
 
     # This needs to become smarter, looking for stale kpartx devices
     LOOPS=`$SUDO losetup -al | grep devicemapper | grep -v docker | wc -l`
@@ -315,6 +324,8 @@ function mount_image() {
     [ ! -f $LOCALIMG ] && LAST_KPARTX= && return 1
     quiet $SUDO mkdir -p $MNT
     quiet $SUDO kpartx -as $LOCALIMG
+
+    # Do not die() from in here or you might get infinite recursion.
     [ $? -ne 0 ] && echo "kpartx of $LOCALIMG failed" >&2 && exit 1
     LAST_KPARTX=$LOCALIMG
     DEV=`losetup | awk -v mounted=$LAST_KPARTX '$0 ~ mounted {print $1}'`
@@ -324,7 +335,7 @@ function mount_image() {
     	$SUDO kpartx -d $LAST_KPARTX
 	LAST_KPARTX=
     	echo "mount of $LOCALIMG failed" >&2
-	exit 1
+	exit 1	# die() might cause infinite recursion
     fi
 
     # bind mounts to make /etc/grub.d/XXX happy when they calls grub-probe
