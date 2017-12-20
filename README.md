@@ -12,14 +12,16 @@ The emulation employs QEMU virtual machines performing the role of "nodes" in Th
 
 ## Setup and Execution
 
-The Machine project created a Debian derivative known as L4TM: Linux for
-The Machine.  It follows that the emulation configurator script
-*emulation_configure.bash* was created for Debian 8.x (Jessie).  
-It has been upgraded to work with Stretch and Ubuntu 16/17.  The script
-centers around the image produced by vmdebootstrap, and other packages
-are required as well.  These existence of these packages is checked
+The Machine project at HPE created a Debian derivative known as L4TM: Linux
+for The Machine.  Thus the emulation configurator script of this project,
+*emulation_configure.bash*, was created for Debian 8.x (Jessie).
+
+It has been upgraded to work with Stretch (Debian 9.x) and Ubuntu 16/17.  
+The script centers around the image produced by vmdebootstrap, with other
+packages are required as well.  These existence of these packages is checked
 by the script during its early phase.  You may get output requesting
-the installation of additional packages to resolve.
+the installation of additional packages to resolve, then you can
+re-run the script.
 
 If your host system is NOT Stretch or Ubuntu 16/17 you may be able to
 use a Docker Stretch container to create the VMs, then run them on
@@ -29,7 +31,7 @@ Before running *emulation_configure.sh* several environment variables must
 be set or exported that represent choices for the script.  VM images are
 build from two repos:
 
-1. A "stock" Debian repo that gets Stretch via vmdebootstrap
+1. A "stock" Debian repo that feeds vmdebootstrap for the bulk of the VM image
 2. An "L4FAME" (Linux for FAME) repo that has about a dozen packages
    needed by each node.
 
@@ -39,18 +41,17 @@ operating values.  They are listed here in alphabetical order:
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | FAME_FAM | The "backing store" for the Global NVM seen by the nodes; it's the file used by QEMU IVSHMEM. | REQUIRED! |
-| FAME_KERNEL | The kernel package pulled from the $FAME_L4FAME repo (during
-development multiple kernels existed). | linux-image-4.14.0-l4fame+ |
-| FAME_L4FAME | The auxiliary L4FAME repo.  This global copy is maintained
-by HPE but there are ways to build your own. | http://downloads.linux.hpe.com/repo/l4fame/Debian |
+| FAME_KERNEL | The kernel package pulled from the $FAME_L4FAME repo (during development multiple kernels existed). | linux-image-4.14.0-l4fame+ |
+| FAME_L4FAME | The auxiliary L4FAME repo.  This global copy is maintained by HPE but there are ways to build your own. | http://downloads.linux.hpe.com/repo/l4fame/Debian |
 | FAME_MIRROR | The primary Debian repo used by vmdebootstrap. | http://ftp.us.debian.org/debian |
-| FAME_OUTDIR | All resulting artifacts are located here, including "env.sh" that lists the FAME_XXX values.  $FAME_FAM is usually placed here. | /tmp |
+| FAME_OUTDIR | All resulting artifacts are located here, including "env.sh" that lists the FAME_XXX values.  This is a good place to allocate $FAME_FAM. | /tmp |
 | FAME_PROXY | Any proxy needed to reach $FAME_MIRROR. | $http_proxy |
 | FAME_VCPUS | The number of virtual CPUs for each VM | 2 |
 | FAME_VDRAM | Virtual DRAM allocated for each VM in KiB | 768432 |
 | FAME_VERBOSE |Normally the script is fairly quiet, only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $FAME_OUTDIR/fabric_emulation.log | unset |
 
-If you run the script with no options it will print the current values:
+If you run the script with no options (-h or a number of VMs) it will print
+the current variable values:
 
 ```
 $ ./emulation_configure.bash
@@ -66,13 +67,12 @@ FAME_VDRAM=786432
 FAME_VERBOSE=
 ```
 
-Variables can be exported to be used by the script using:
+Variables can be exported for use by the script:
 
     $ export FAME_MIRROR=http://a.b.com/debian
     $ export FAME_VERBOSE=yes
 
-The file referenced by $FAME_FAM must exist and be over 1G.  It must also belong to the group "libvirt-qemu" and
-have permissions 66x.  Suggestions:
+The file referenced by $FAME_FAM must exist and be over 1G.  It must also belong to the group "libvirt-qemu" and have permissions 66x.  Suggestions:
 
     $ export FAME_OUTDIR=$HOME/FAME
     $ mkdir -p $FAME_OUTDIR
@@ -86,7 +86,7 @@ The size of 16G will be explained below in the section on The Librarian.  Trust 
 After setting variables, run the script; it takes the desired number of VMs
 as its sole argument.  Several of the commands in the script must be run
 as root.  You can either run the script as "yourself" in which case you'll
-be prompted early for your password:
+be prompted early for your password for "sudo":
 
     $ ./emulation_configure.bash n
 
@@ -104,7 +104,10 @@ emulation_configure.bash performs the following actions:
   2. Provides DHCP services via dnsmasq, and DNS resolution for names like "node02"
   2. Links all emulated VM "nodes" together on an intranet (ala The Machine)
   2. Uses NAT to connect the intranet to the host system's external network.
-1. Uses vmdebootstrap(1m) to create a new disk image (file) that serves as the template for each VM's file system.  This is the step that pulls from the Debian mirror (see FAME_MIRROR and FAME_PROXY above).  Most of the configuration is specified in the templates/vmd_X.  The specific file is dependent on the version of vmdebootstrap on the host system.  This template file is a raw disk image yielding about eight gigabytes of file system space for a VM, more than enough for a non-graphical Linux development system.
+1. Uses vmdebootstrap(1m) to create a new disk image (file) that serves
+   as the "golden image" for subsequent use.  This is the step that pulls
+   from $FAME_MIRROR possibly using $FAME_PROXY.  Most of the configuration
+   is specified in the templates/vmd_X.  The specific file is dependent on the version of vmdebootstrap on the host system.  This template file is a raw disk image yielding about eight gigabytes of file system space for a VM, more than enough for a non-graphical Linux development system.
 1. Copy the template image for each VM and customize it (hostname, /etc/hosts, /etc/resolv.conf, root and user "l4tm").  The raw image is then converted to a qcow2 (copy-on-write) which shrinks its size down to 800 megabytes.  That will grow with use.  The qcow2 files are created in $FAME_OUTDIR.
 1. Emits libvirt XML node definition files and scripts to load/start/stop/unload them from libvirt/virt-manager.  Those files are all in $FAME_OUTDIR.  The XML files contain stanzas necessary to create the IVSHMEM connectivity (see below).
 
