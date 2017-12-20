@@ -107,9 +107,19 @@ emulation_configure.bash performs the following actions:
 1. Uses vmdebootstrap(1m) to create a new disk image (file) that serves
    as the "golden image" for subsequent use.  This is the step that pulls
    from $FAME_MIRROR possibly using $FAME_PROXY.  Most of the configuration
-   is specified in the templates/vmd_X.  The specific file is dependent on the version of vmdebootstrap on the host system.  This template file is a raw disk image yielding about eight gigabytes of file system space for a VM, more than enough for a non-graphical Linux development system.
-1. Copy the template image for each VM and customize it (hostname, /etc/hosts, /etc/resolv.conf, root and user "l4tm").  The raw image is then converted to a qcow2 (copy-on-write) which shrinks its size down to 800 megabytes.  That will grow with use.  The qcow2 files are created in $FAME_OUTDIR.
-1. Emits libvirt XML node definition files and scripts to load/start/stop/unload them from libvirt/virt-manager.  Those files are all in $FAME_OUTDIR.  The XML files contain stanzas necessary to create the IVSHMEM connectivity (see below).
+   is specified in the templates/vmd_X.  The specific file is dependent on
+   the version of vmdebootstrap on the host system.  This template file is a
+   raw disk image yielding about eight gigabytes of file system space for
+   a VM, more than enough for a non-graphical Linux development system.
+1. Copy the template image for each VM and customize it (hostname,
+   /etc/hosts, /etc/resolv.conf, root and user "l4tm").  The raw image is
+   then converted to a qcow2 (copy-on-write) which shrinks its size down to
+   800 megabytes.  That will grow with use.  The qcow2 files are created in
+   $FAME_OUTDIR.
+1. Emits libvirt XML node definition files and and a script to 
+   load/start/stop/unload them from libvirt/virt-manager.  Those files are
+   all written to $FAME_OUTDIR.  The XML files contain stanzas necessary to
+   create the IVSHMEM connectivity (see below).
 
 ## Artifacts
 
@@ -121,24 +131,35 @@ The following files will be created in $FAME_OUTDIR after a successful run.  Not
 | nodeXX.qcow2 | The disk image file for VM "node" XX |
 | nodeXX.xml | The "domain" defintion file for "node" XX, loaded into virt-manager via "virsh define nodeXX.xml" |
 | node_emulation.log | Trace file of all steps by emulation_configure.bash |
-| node_template.img |	Pristine (un-customized) file-system image of vmdebootstrap.  This is a partitioned disk image and is not needed to run the VMs. |
-| node_virsh.sh | Shell script to to "define", "start", "destroy" (stop), and "undefine" all VM "nodes" |
+| node_template.img |	Pristine (un-customized) file-system golden image of vmdebootstrap. |
+| node_virsh.sh | Shell script to to "define", "start", "stop", "destroy", and "undefine" all VM "nodes" |
 
 ## VM Guest Environment
 
-The root password is "iforgot".  A single normal user also exists, "l4tm", with password "iforgot", and is enabled as a full "sudo" account.  The l4tm user is configured with a phraseless ssh keypair expressed in id_rsa.nophrase (the private key).
+The root password is "iforgot".  A single normal user also exists, "l4tm",
+also with password "iforgot", and is enabled as a full "sudo" account.  The
+l4tm user is configured with a phraseless ssh keypair expressed in
+id_rsa.nophrase (the private key).
 
-Networking should be active on eth0.  /etc/hosts is set up for "nodes" node01 through nodeXX.  The host system is known by its own hostname and the name "torms".   sshd is set up on every node for inter-node access as well as access from the host.
+Networking should be active on eth0.  /etc/hosts is set up for "nodes" node01
+through nodeXX.  The QEMU host system is known by its own hostname and 
+the name "torms"; see the section on the Librarian.  sshd is set up on
+every node for inter-node access as well as access from the host.
 
-"apt" and "aptitude" are configured to allow package installation and updates per the FAME_MIRROR and FAME_PROXY settings above.
-
-A reasonable development environment (gcc, make) is available.  This can be used to compile the simple "hello world" program found in the home directory of user "fabric".
+A reasonable development environment (gcc, make) is available at first boot.
+"apt" and "aptitude" are configured to allow package installation and
+updates per the FAME_MIRROR, FAME_L4FAME, and FAME_PROXY settings above.
 
 ## Networking and DNS to the "nodes"
 
-With resolvconf, NetworkManager, and systemd-resolved all vying for attention, this is highly non-deterministic :-)   More will be revealed...
+With resolvconf, NetworkManager, and systemd-resolved all vying for attention,
+this is highly non-deterministic :-)   More will be revealed...
 
-For now, node01 == 192.168.42.1, node-2 == 192.168.42.2, etc.
+For now, node01 == 192.168.42.1, node02 == 192.168.42.2, etc.
+
+You can ssh to the node as the "l4tm" user.  If you set your $HOME/.ssh/config
+file correctly using the id_rsa.nophrase private key the ssh occurs without
+further typing.
 
 ## IVSHMEM connectivity between all VMs
 
@@ -166,4 +187,8 @@ of fabric-attached memory emulation.
 
 ## The Librarian File System (LFS)
 
-WIP
+The nodes (VMs) participate in a distributed file system.  That file system
+is coordinate by a single master daemon known as the Librarian.  Before
+starting the nodes the Librarian must be 
+**[configured as discussed in this document.](Librarian.md)**
+
