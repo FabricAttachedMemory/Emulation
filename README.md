@@ -10,6 +10,28 @@ Fabric-Attached Memory Emulation is an environment that can be used to explore t
 
 The emulation employs QEMU virtual machines performing the role of "nodes" in The Machine.  Inter-Virtual Machine Shared Memory (IVSHMEM) is configured across all the "nodes" so they see a shared, global memory space.  This space can be accessed via mmap(2) and will behave just the same as the memory centric-computing on The Machine.
 
+### IVSHMEM connectivity between all VMs
+
+Memory-driven computing (MDC) in The Machine is done via memory accesses
+identical to those used with legacy memory-mapping.  Emulation provides
+a resource for such [user space programming via IVSHMEM]
+(https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).
+
+Each VM sees a pseudo-PCI device with a memory base address registers (BAR)
+representing physical address space.  This can be seen in detail in a VM via
+"lspci -vv".  Resource2 is memory-mapped access to $FAME_FAM; its size is
+the size of the file on the host sytstem.  This is presented to the VM kernel
+as live, cacheable, unmapped physical address space.
+
+The VM "physical" address space is backed on the host the file $FAME_FAM.
+This file must exist before invoking emulation_configure.bash, and its size
+must be a power of two.  Anything done to the address space on the VM is
+reflected in the file on the host, and vice verse.
+
+Finally, all VMs (i.e, "nodes") are started with the same IVSHMEM stanza.
+Thus they all share that pseudo-physical memory space.  That is the essence
+of fabric-attached memory emulation.
+
 ## Setup and Execution
 
 The Machine project at HPE created a Debian derivative known as L4TM: Linux
@@ -24,8 +46,8 @@ the installation of additional packages to resolve, then you can
 re-run the script.
 
 If your host system is NOT Stretch or Ubuntu 16/17 you may be able to
-use a Docker Stretch container to create the VMs, then run them on
-your host OS.  That effort is just getting underway.
+use a Docker Stretch container to create the VMs, then run them under QEMU
+on your host OS.  [That effort documented here.](Docker.md)
 
 Before running *emulation_configure.sh* several environment variables must
 be set or exported that represent choices for the script.  VM images are
@@ -134,12 +156,29 @@ The following files will be created in $FAME_OUTDIR after a successful run.  Not
 | node_template.img |	Pristine (un-customized) file-system golden image of vmdebootstrap. |
 | node_virsh.sh | Shell script to to "define", "start", "stop", "destroy", and "undefine" all VM "nodes" |
 
-## VM Guest Environment
+## The Librarian File System (LFS)
 
-The root password is "iforgot".  A single normal user also exists, "l4tm",
-also with password "iforgot", and is enabled as a full "sudo" account.  The
-l4tm user is configured with a phraseless ssh keypair expressed in
-id_rsa.nophrase (the private key).
+The nodes (VMs) participate in a distributed file system.  That file system
+is coordinated by a single master daemon known as the Librarian.  Before
+starting the nodes the Librarian must be 
+**[configured as discussed in this document.](Librarian.md)**
+
+## Starting the nodes
+
+Once the librarian is running, you can declare the nodes to the libvirt
+subsystem:
+
+1. cd $FAME_OUTDIR
+1. ./node_virsh define
+1. ./node_virsh start
+
+After "define", libvirt knows about the nodes so you could also run 
+individual "virsh" commands to start nodes, or run virt-manager.
+
+The root password for all nodes is "iforgot".  A normal user also
+exists, "l4tm", also with password "iforgot", and is enabled as a full
+"sudo" account.  The l4tm user is configured with a phraseless ssh
+keypair expressed in id_rsa.nophrase (the private key).
 
 Networking should be active on eth0.  /etc/hosts is set up for "nodes" node01
 through nodeXX.  The QEMU host system is known by its own hostname and 
@@ -150,45 +189,6 @@ A reasonable development environment (gcc, make) is available at first boot.
 "apt" and "aptitude" are configured to allow package installation and
 updates per the FAME_MIRROR, FAME_L4FAME, and FAME_PROXY settings above.
 
-## Networking and DNS to the "nodes"
+## Running FAME on non-Debian host systems
 
-With resolvconf, NetworkManager, and systemd-resolved all vying for attention,
-this is highly non-deterministic :-)   More will be revealed...
-
-For now, node01 == 192.168.42.1, node02 == 192.168.42.2, etc.
-
-You can ssh to the node as the "l4tm" user.  If you set your $HOME/.ssh/config
-file correctly using the id_rsa.nophrase private key the ssh occurs without
-further typing.
-
-## IVSHMEM connectivity between all VMs
-
-Memory-driven computing (MDC) in The Machine is done via memory accesses
-identical to those used with legacy memory-mapping.  Emulation provides
-a resource for such [user space programming via IVSHMEM]
-(https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).
-Extra commands buried in the node_XX.xml file attach each VM "node" to the
-same $FAME_FAM file.
-
-Each VM sees a pseudo-PCI device with a memory base address register (BAR)
-of size 1024 megabytes (one gigabyte).  It can be seen in detail via
-"lspci -vv".  Resource2 is memory-mapped access to $FAME_FAM; its size is
-the size of the file on the host sytstem.  This is presented to the VM kernel
-as live, cacheable, unmapped physical address space.
-
-The VM "physical" address space is backed on the host the file $FAME_FAM.
-This file must exist before invoking emulation_configure.bash, and its size
-must be a power of two.  Anything done to the address space on the VM is
-reflected in the file on the host, and vice verse.
-
-Finally, all VMs (i.e, "nodes") are started with the same IVSHMEM stanza.
-Thus they all share that pseudo-physical memory space.  That is the essence
-of fabric-attached memory emulation.
-
-## The Librarian File System (LFS)
-
-The nodes (VMs) participate in a distributed file system.  That file system
-is coordinate by a single master daemon known as the Librarian.  Before
-starting the nodes the Librarian must be 
-**[configured as discussed in this document.](Librarian.md)**
-
+Coming soon to a Dockerfile near you!
