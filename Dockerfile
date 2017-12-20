@@ -16,4 +16,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	rm -rf /var/lib/apt/lists/*; \
 	ls
 
-CMD [ "bash" ]
+CMD [ "./emulation_configure.bash" ]

@@ -103,6 +103,11 @@ function yesno() {
     done
 }
 
+function inDocker() {
+    grep -Eq "^[[:digit:]]+:[[:alnum:]_,=]+:/docker/[[:xdigit:]]+$" /proc/$$/cgroup
+    return $?	# Is this superfluous?
+}
+
 ###########################################################################
 # Helper for qemu-bridge-helper, contained in package qemu-system-common
 
@@ -172,7 +177,8 @@ function verify_host_environment() {
     # Another user submitted errata which may include
     # bison dh-autoreconf flex gtk2-dev libglib2.0-dev livbirt-bin zlib1g-dev
     [ -x /bin/which -o -x /usr/bin/which ] || die "Missing command 'which'"
-    NEED="awk brctl grep libvirtd losetup qemu-img qemu-system-x86_64 virsh vmdebootstrap"
+    NEED="awk brctl grep losetup qemu-img vmdebootstrap"
+    [ ! inDocker ] && NEED="$NEED libvirtd qemu-system-x86_64 virsh"
     [ "$SUDO" ] && NEED="$NEED sudo"
     MISSING=
     for CMD in $NEED; do
