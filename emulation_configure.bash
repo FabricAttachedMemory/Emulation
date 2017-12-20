@@ -634,12 +634,13 @@ EOHOSTS
     # https://wiki.archlinux.org/index.php/NFS#Mount_using_.2Fetc.2Ffstab_with_systemd
     # It mounts on first use, after waiting for networking, timeout 10 seconds
     # in case "torms" isn't exporting /srv
+    # HOWEVER the automount is erratic, folks take it out, and Poettering 
+    # just closed it.  Experimentation yielded this combo (no timeout)...
 
     quiet $SUDO tee $FSTAB << EOFSTAB
 proc		/proc	proc	defaults	0 0
 /dev/vda1	/	auto	defaults	0 0
-torms:/srv	/srv	nfs	noauto,x-systemd.automount,x-systemd.requires=ne
-twork.target,x-systemd.device-timeout=10 0 0
+torms:/srv	/srv	nfs	noauto,noatime,x-systemd.requires=network.target,x-systemd.automount 0 0
 EOFSTAB
 
     return 0
