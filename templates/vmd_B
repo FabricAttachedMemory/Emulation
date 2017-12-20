@@ -23,12 +23,12 @@ roottype = ext4
 foreign =
 
 arch = amd64
-distribution = jessie
+distribution = stretch
 
 package = aptitude,apt-utils,attr,build-essential,ca-certificates,curl,gnupg,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,nfs-common,pciutils,psmisc,psutils,python3-psutil,ssh,vim,wget
 custom-package =
 
-# Stretch 4.9 is later than ours
+# 2018-12: L4FAME exports kernel 4.14y which is later than stretch @ 4.3
 no-kernel = False
 sudo = True
 
