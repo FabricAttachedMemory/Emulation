@@ -12,33 +12,59 @@ The emulation employs QEMU virtual machines performing the role of "nodes" in Th
 
 ## Setup and Execution
 
-The emulation configurator script, *emulation_configure.bash*, was written for Debian 8.x (Jessie) but is undergoing tests on
-Stretch and Ubuntu 16/17.  It should have the packages necessary for x86_64 virtual machines: qemu-system-x86_64 and libvirtd-bin should bring in everything else.  You also need the vmdebootstrap package.
+The Machine project created a Debian derivative known as L4TM: Linux for
+The Machine.  It follows that the emulation configurator script
+*emulation_configure.bash* was created for Debian 8.x (Jessie).  
+It has been upgraded to work with Stretch and Ubuntu 16/17.  The script
+centers around the image produced by vmdebootstrap, and other packages
+are required as well.  These existence of these packages is checked
+by the script during its early phase.  You may get output requesting
+the installation of additional packages to resolve.
 
-After cloning this repo, several environment variables can be set (or exported first) that affect the operation of emulation_configure.bash:
+If your host system is NOT Stretch or Ubuntu 16/17 you may be able to
+use a Docker Stretch container to create the VMs, then run them on
+your host OS.  That effort is just getting underway.
+
+Before running *emulation_configure.sh* several environment variables must
+be set or exported that represent choices for the script.  VM images are
+build from two repos:
+
+1. A "stock" Debian repo that gets Stretch via vmdebootstrap
+2. An "L4FAME" (Linux for FAME) repo that has about a dozen packages
+   needed by each node.
+
+The environment variables specify the repo locations as well as QEMU
+operating values.  They are listed here in alphabetical order:
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | FAME_FAM | The "backing store" for the Global NVM seen by the nodes; it's the file used by QEMU IVSHMEM. | REQUIRED! |
-| FAME_MIRROR | The script builds VM images by pulling packages from this Debian repo. | http://ftp.us.debian.org/debian |
-| FAME_OUTDIR | All resulting artifacts are located here, including "env.sh" that lists the FAME_XXX values.  A size check is done to ensure there's enough space. | /tmp |
+| FAME_KERNEL | The kernel package pulled from the $FAME_L4FAME repo (during
+development multiple kernels existed). | linux-image-4.14.0-l4fame+ |
+| FAME_L4FAME | The auxiliary L4FAME repo.  This global copy is maintained
+by HPE but there are ways to build your own. | http://downloads.linux.hpe.com/repo/l4fame/Debian |
+| FAME_MIRROR | The primary Debian repo used by vmdebootstrap. | http://ftp.us.debian.org/debian |
+| FAME_OUTDIR | All resulting artifacts are located here, including "env.sh" that lists the FAME_XXX values.  $FAME_FAM is usually placed here. | /tmp |
 | FAME_PROXY | Any proxy needed to reach $FAME_MIRROR. | $http_proxy |
 | FAME_VCPUS | The number of virtual CPUs for each VM | 2 |
 | FAME_VDRAM | Virtual DRAM allocated for each VM in KiB | 768432 |
-| FAME_VERBOSE |Normally the script is fairly quiet, only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $ARTDIR/fabric_emulation.log | unset |
+| FAME_VERBOSE |Normally the script is fairly quiet, only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $FAME_OUTDIR/fabric_emulation.log | unset |
 
 If you run the script with no options it will print the current values:
 
+```
 $ ./emulation_configure.bash
 Environment:
 http_proxy=http://some.proxy.net:8080
-FAME_FAM=/home/rocky/MyFAME/FAM
+FAME_KERNEL=linux-image-4.14.0-l4fame+
+FAME_L4FAME=http://downloads.linux.hpe.com/repo/l4fame/Debian
 FAME_MIRROR=http://ftp.us.debian.org/debian
-FAME_OUTDIR=/home/rocky/DiscoverFAME
-FAME_PROXY=http://some.proxy.net:8080
+FAME_OUTDIR=/tmp
+FAME_PROXY=
 FAME_VCPUS=2
 FAME_VDRAM=786432
 FAME_VERBOSE=
+```
 
 Variables can be exported to be used by the script using:
 
@@ -49,6 +75,7 @@ The file referenced by $FAME_FAM must exist and be over 1G.  It must also belong
 have permissions 66x.  Suggestions:
 
     $ export FAME_OUTDIR=$HOME/FAME
+    $ mkdir -p $FAME_OUTDIR
     $ export FAME_FAM=$FAME_OUTDIR/FAM
     $ fallocate -l 16G $FAME_FAM
     $ chgrp libvirt-qemu $FAME_FAM
@@ -56,18 +83,17 @@ have permissions 66x.  Suggestions:
     
 The size of 16G will be explained below in the section on The Librarian.  Trust me, this is a good starting number.
 
-After setting variables, now run the script; it takes the desired number of VMs as its sole argument.  Several of the commands in the script must be run as root. You can either run the entire script as root (or sudo), or run the script as a normal user: all necessary commands are run internally behind "sudo".
+After setting variables, run the script; it takes the desired number of VMs
+as its sole argument.  Several of the commands in the script must be run
+as root.  You can either run the script as "yourself" in which case you'll
+be prompted early for your password:
 
-    $ emulation_configure.bash n
+    $ ./emulation_configure.bash n
 
-Variables must be seen in the script's environment so use the "-E"
-command if invoking sudo directly:
+or you can start it with sudo.  Variables must be seen in the script's
+environment so use the "-E" command if invoking sudo directly:
 
-    $ sudo -E emulation_configure.bash n
-
-The variables can also be configured in the command where the script is run:
-
-    $ sudo FAME_VERBOSE=yes FAME_MIRROR=http://a.b.com/debian emulation_configure.bash n
+    $ sudo -E ./emulation_configure.bash n
 
 ## Behind the scenes
 
@@ -113,24 +139,28 @@ For now, node01 == 192.168.42.1, node-2 == 192.168.42.2, etc.
 
 ## IVSHMEM connectivity between all VMs
 
-Memory-centric computing in a The Machine is done via memory accesses similar to those used with legacy memory-mapping.  Emulation provides a resource for such [user space programming via IVSHMEM](https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).  Extra commands buried in the node_XX.xml file attach to the $FAME_FAM file.
+Memory-driven computing (MDC) in The Machine is done via memory accesses
+identical to those used with legacy memory-mapping.  Emulation provides
+a resource for such [user space programming via IVSHMEM]
+(https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).
+Extra commands buried in the node_XX.xml file attach each VM "node" to the
+same $FAME_FAM file.
 
-Each VM sees a pseudo-PCI device with a memory base address register (BAR) of size 1024 megabytes (one gigabyte).  It can be seen in detail via "lspci -vv".  Resource2 is memory-mapped access to $FAME_FAM; its size is the size of the file on the host sytstem.  This is presented to the VM kernel as "live", unmapped physical address space.
+Each VM sees a pseudo-PCI device with a memory base address register (BAR)
+of size 1024 megabytes (one gigabyte).  It can be seen in detail via
+"lspci -vv".  Resource2 is memory-mapped access to $FAME_FAM; its size is
+the size of the file on the host sytstem.  This is presented to the VM kernel
+as live, cacheable, unmapped physical address space.
 
-The VM "physical" address space is backed on the host the file $FAME_FAM.  This file must exist before invoking emulation_configure.bash, and its size must be a power of two.  Anything done to the address space on the VM is reflected in the file on the host, and vice verse.
+The VM "physical" address space is backed on the host the file $FAME_FAM.
+This file must exist before invoking emulation_configure.bash, and its size
+must be a power of two.  Anything done to the address space on the VM is
+reflected in the file on the host, and vice verse.
 
-Finally, all VMs (i.e, "nodes") are started with the same IVSHMEM stanza.  Thus they all share that pseudo-physical memory space.  That is the essence of fabric-attached memory emulation.
+Finally, all VMs (i.e, "nodes") are started with the same IVSHMEM stanza.
+Thus they all share that pseudo-physical memory space.  That is the essence
+of fabric-attached memory emulation.
 
-## Hello, world!
+## The Librarian File System (LFS)
 
-As the IVSHMEM address space is physical and unmapped, a kernel driver is needed to access it.   Fortunately there's a shortcut in the QEMU world.  The IVSHMEM mechanism also makes a file available on the VM side under /proc/bus/pci.   In general the apparent PCI address might vary between VMs, but since they all use a simple stanza, all VMs see that file at
-
-    /sys/bus/pci/devices/0000:00:09.0/resource2
-    
-    (the digits "09" are typical with the 
-
-If a user-space program on the VM opens and memory-maps this file via mmap(2), memory accesses go to the pseudo-physical address space shared across all VMs.  This file can only be memory-mapped on the VM; read and write is not implemented.
-
-A simple demo program is copied to the home directory of the "l4tm" user on each VM.  Compile it on one node and run it (using sudo to execute).  Then go to the host VM and "od -cN80 $FAME_FAM".  You should see uname output from the node.  Those same contents will appear to all other nodes, too (if you write a program that loads from the shared space instead of storing to it).
-
-What about syncing between nodes?  For that you need the Librarian, which will be explained shortly...
+WIP
