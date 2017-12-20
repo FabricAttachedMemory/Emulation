@@ -575,6 +575,8 @@ function manifest_template_image() {
 
     validate_template_image || die "Validation of fresh $TEMPLATEIMG failed"
 
+    quiet $SUDO mv -f dpkg.list $FAME_OUTDIR	# "pklist" is hardcoded here
+
     transmogrify_l4fame || die "Addition of L4FAME repo failed"
 
     return 0
@@ -627,10 +629,17 @@ EOHOSTS
     #------------------------------------------------------------------
     FSTAB=$MNT/etc/fstab
 
+    # NFS mount of "defaults" breaks; journalctl -xe | grep srv shows why.
+    # Google for "srv.mount nfs before network" and get to
+    # https://wiki.archlinux.org/index.php/NFS#Mount_using_.2Fetc.2Ffstab_with_systemd
+    # It mounts on first use, after waiting for networking, timeout 10 seconds
+    # in case "torms" isn't exporting /srv
+
     quiet $SUDO tee $FSTAB << EOFSTAB
 proc		/proc	proc	defaults	0 0
-/dev/sda1	/	ext4	defaults	0 0
-torms:/srv	/srv	nfs	defaults	0 0
+/dev/vda1	/	auto	defaults	0 0
+torms:/srv	/srv	nfs	noauto,x-systemd.automount,x-systemd.requires=ne
+twork.target,x-systemd.device-timeout=10 0 0
 EOFSTAB
 
     return 0

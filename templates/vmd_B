@@ -2,10 +2,11 @@
 # The following values are crafted for the command line:
 # log, image, tarball, mirror, owner
 # vmdebootstrap versions: 1.6
+# https://media.readthedocs.org/pdf/vmdebootstrap/latest/vmdebootstrap.pdf
 # Features: debootstraptops, system-networkd, apt-configure, use-uefi
 
 [config]
-debootstrapopts = variant=buildd
+debootstrapopts = "variant=buildd"
 verbose = True
 output =
 log-level = debug
@@ -14,6 +15,7 @@ log-keep = 10
 log-mode = 0666
 dump-memory-profile = none
 memory-dump-interval = 300
+pkglist = True
 
 sparse = False
 size = 8G
@@ -25,15 +27,22 @@ foreign =
 arch = amd64
 distribution = stretch
 
-package = aptitude,apt-utils,attr,build-essential,ca-certificates,curl,gnupg,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,nfs-common,pciutils,psmisc,psutils,python3-psutil,ssh,vim,wget
+# Apparently some packages changed from "Priority: required" to important
+# and don't get pulled in with certain variants so put them back:
+# dbus: shutdown is broken without it
+# init: many things are broken with it, specifically auto-networking.
+
+package = aptitude,apt-utils,attr,build-essential,ca-certificates,curl,dbus,gnupg,ifupdown,init,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,nfs-common,pciutils,psmisc,psutils,python3-psutil,ssh,vim,wget
 custom-package =
 
 # 2018-12: L4FAME exports kernel 4.14y which is later than stretch @ 4.3
 no-kernel = False
 sudo = True
 
-systemd-networkd = False
-enable-dhcp = True
+# Do not try to second-guess the defaults based on that PDF.  Somehow
+# /etc/systemd/network/99-dhcp.network magically appears, hopefully from udev.
+# systemd-networkd = Please do the right thing
+# enable-dhcp = Please do the right thing
 root-password = iforgot
 lock-root-password = False
 
