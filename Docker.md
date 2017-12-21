@@ -19,6 +19,7 @@ Then you can run the FAME VMs on your native host.
    export FAME_OUTDIR=/absolute/path/to/some/directory
    export FAME_FAM=$FAME_OUTDIR/FAM
    ```
+   $FAME_FAM must appear in $FAME_OUTDIR when using this container technique.
 
 1. ```docker build --build-arg http_proxy=$http_proxy --tag=fame:emulation_configure .```
 

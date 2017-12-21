@@ -53,13 +53,16 @@ export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.14.0-l4fame+"}
 
 typeset -r HOSTUSERBASE=node
 typeset -r PROJECT=${HOSTUSERBASE}_emulation
-typeset -r LOG=$FAME_OUTDIR/$PROJECT.log
 typeset -r NETWORK=${HOSTUSERBASE}_emul		# libvirt name length limits
 typeset -r HPEOUI="48:50:42"
-typeset -r TEMPLATEIMG=$FAME_OUTDIR/${HOSTUSERBASE}_template.img
-typeset -r TARBALL=$FAME_OUTDIR/${HOSTUSERBASE}_template.tar
 typeset -r OCTETS123=192.168.42			# see fabric_emul.net.xml
 typeset -r TORMSIP=$OCTETS123.254
+typeset -r DOCKER_OUTDIR=/outdir		# See Docker.md
+
+# Can be reset under Docker so no typeset -r
+LOG=$FAME_OUTDIR/$PROJECT.log
+TARBALL=$FAME_OUTDIR/${HOSTUSERBASE}_template.tar
+TEMPLATEIMG=$FAME_OUTDIR/${HOSTUSERBASE}_template.img
 
 export DEBIAN_FRONTEND=noninteractive	# preserved by chroot
 export DEBCONF_NONINTERACTIVE_SEEN=true
@@ -156,8 +159,21 @@ EOMSG
 
 [ `id -u` -ne 0 ] && SUDO="sudo -E" || SUDO=
 
+function _fixup_environment() {
+    inHost && return
+    export FAME_OUTDIR=$DOCKER_OUTDIR
+    export FAME_FAM=$DOCKER_OUTDIR/`basename $FAME_FAM`
+    export LOG=$DOCKER_OUTDIR/`basename $LOG`
+    export TARBALL=$DOCKER_OUTDIR/`basename $TARBALL`
+    export TEMPLATEIMG=$DOCKER_OUTDIR/`basename $TEMPLATEIMG`
+    echo -e '\nAfter fixup,'
+    env | sort
+}
+
 function verify_host_environment() {
     sep Verifying host environment
+
+    _fixup_environment
 
     [ ! -d "$FAME_OUTDIR" ] && echo "$FAME_OUTDIR does not exist" >&2 && exit 1
     [ ! -w "$FAME_OUTDIR" ] && echo "$FAME_OUTDIR is not writeable" >&2 && exit 1
@@ -180,8 +196,8 @@ function verify_host_environment() {
     # Another user submitted errata which may include
     # bison dh-autoreconf flex gtk2-dev libglib2.0-dev livbirt-bin zlib1g-dev
     [ -x /bin/which -o -x /usr/bin/which ] || die "Missing command 'which'"
-    NEED="awk brctl grep losetup qemu-img vmdebootstrap"
-    inHost && NEED="$NEED libvirtd qemu-system-x86_64 virsh"
+    NEED="awk grep losetup qemu-img vmdebootstrap"
+    inHost && NEED="$NEED brctl libvirtd qemu-system-x86_64 virsh"
     [ "$SUDO" ] && NEED="$NEED sudo"
     MISSING=
     for CMD in $NEED; do
@@ -782,3 +798,4 @@ clone_VMs
 
 emit_libvirt_XML
 
+exit 0
