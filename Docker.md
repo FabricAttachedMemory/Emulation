@@ -19,16 +19,22 @@ Then you can run the FAME VMs on your native host.
    export FAME_OUTDIR=/absolute/path/to/some/directory
    export FAME_FAM=$FAME_OUTDIR/FAM
    ```
+   
+1. Create $FAME_FAM to be the necessary size.  For a 16 G file,
 
-1. ```docker build --build-arg http_proxy=$http_proxy --tag=fame:emulation_configure .```
+   ```
+   fallocate -l 16G $FAME_FAM
+   chgrp libvirt-qemu $FAME_FAM
+   chmod 660 $FAME_FAM
+   ```
 
 1. ```./emulation_configure.bash > myenv```
 
    Edit myenv to have the right values.
 
-1. ```docker run --env-file=myenv -it --rm fame:emulation_configure```
-   
-   and verify values are as expected.
+1. ```docker build --build-arg http_proxy=$http_proxy --tag=fame:emulation_configure .```
 
 1. ```docker run -v $FAME_OUTDIR:/outdir --env-file=myenv -it --rm fame:emulation_configure```
+
+    and verify values are as expected.
 
