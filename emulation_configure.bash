@@ -103,7 +103,7 @@ function yesno() {
 }
 
 function inDocker() {
-    grep -Eq "^[[:digit:]]+:[[:alnum:]_,=]+:/docker/[[:xdigit:]]+$" /proc/$$/cgroup
+    grep -Eq '^[[:digit:]]+:[[:alnum:]_,=]+:/docker/[[:xdigit:]]+$' /proc/$$/cgroup
 }
 
 function inHost() {	# More legible than "! inDocker"
@@ -181,7 +181,7 @@ function verify_host_environment() {
     # bison dh-autoreconf flex gtk2-dev libglib2.0-dev livbirt-bin zlib1g-dev
     [ -x /bin/which -o -x /usr/bin/which ] || die "Missing command 'which'"
     NEED="awk brctl grep losetup qemu-img vmdebootstrap"
-    [ inHost ] && NEED="$NEED libvirtd qemu-system-x86_64 virsh"
+    inHost && NEED="$NEED libvirtd qemu-system-x86_64 virsh"
     [ "$SUDO" ] && NEED="$NEED sudo"
     MISSING=
     for CMD in $NEED; do
@@ -255,7 +255,7 @@ function verify_host_environment() {
 # libvirt / virsh / qemu / kvm stuff
 
 function libvirt_bridge() {
-    [ inDocker ] && return 0
+    inDocker && return 0
     sep Configure libvirt network bridge \"$NETWORK\"
 
     NETXML=templates/network.xml
@@ -759,7 +759,7 @@ function echo_environment() {
 
 if [ $# -ne 1 -o "${1:0:1}" = '-' ]; then
 	echo_environment
-	[ inHost ] && echo -e "\nusage: `basename $0` [ -h|? ] [ VMcount ]"
+	inHost && echo -e "\nusage: `basename $0` [ -h|? ] [ VMcount ]"
 	exit 0
 fi
 typeset -ir NODES=$1	# will evaluate to zero if non-integer

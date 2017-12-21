@@ -2,4 +2,6 @@
 
 .git*
 
+*env*
+
 images4wiki
