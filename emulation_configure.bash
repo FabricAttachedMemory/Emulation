@@ -166,8 +166,7 @@ function _fixup_environment() {
     export LOG=$DOCKER_OUTDIR/`basename $LOG`
     export TARBALL=$DOCKER_OUTDIR/`basename $TARBALL`
     export TEMPLATEIMG=$DOCKER_OUTDIR/`basename $TEMPLATEIMG`
-    echo -e '\nAfter fixup,'
-    env | sort
+    export USER=`whoami`
 }
 
 function verify_host_environment() {
@@ -227,7 +226,7 @@ function verify_host_environment() {
     [ ! -f "$FAME_FAM" ] && die "$FAME_FAM not found"
     T=`stat -c %s "$FAME_FAM"`
     # Shell boolean values are inverse of Python
-    python3 -c "import math; e=math.log2($T); exit(not(e == int(e)))"
+    python -c "import math; e=math.log($T, 2); exit(not(e == int(e)))"
     [ $? -ne 0 ] && die "$FAME_FAM size $T is not a power of 2"
 
     # QEMU limit is a function of the (pass-through) host CPU and available
@@ -247,13 +246,15 @@ function verify_host_environment() {
     	'losetup -al shows active loopback mounts, please clear them'
 
     # verified working QEMU versions, checked only to "three digits"
-    VERIFIED_QEMU_VERSIONS="2.6.0 2.8.0 2.8.1"
-    set -- `qemu-system-x86_64 -version`
-    # Use regex to check the current version against VERIFIED_QEMU_VERSIONS.
-    # See man page for bash, 3.2.4.2 Conditional Constructs.  No quotes.
-    [[ $VERIFIED_QEMU_VERSIONS =~ ${4:0:5} ]] || \
-    	die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
-    verify_QBH
+    if inHost; then
+    	VERIFIED_QEMU_VERSIONS="2.6.0 2.8.0 2.8.1"
+    	set -- `qemu-system-x86_64 -version`
+    	# Use regex to check the current version against VERIFIED_QEMU_VERSIONS.
+    	# See man page for bash, 3.2.4.2 Conditional Constructs.  No quotes.
+    	[[ $VERIFIED_QEMU_VERSIONS =~ ${4:0:5} ]] || \
+    		die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
+    	verify_QBH
+    fi
 
     # Space for 2 raw image files, the tarball, all qcows, and slop
     [ ! -d "$FAME_OUTDIR" ] && die "$FAME_OUTDIR is not a directory"

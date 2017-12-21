@@ -8,6 +8,7 @@ RUN apt-get update && \
     curl \
     kpartx \
     qemu-utils \
+    vim \
     vmdebootstrap \
     wget
 
