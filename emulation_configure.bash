@@ -30,7 +30,7 @@ export FAME_VCPUS=${FAME_VCPUS:-2}		# No idiot checks yet
 
 export FAME_VDRAM=${FAME_VDRAM:-786432}
 
-export FAME_FAM=${FAME_FAM:-}			# blank will throw an erro
+export FAME_FAM=${FAME_FAM:-}			# blank will throw an error
 
 export FAME_MIRROR=${FAME_MIRROR:-http://ftp.us.debian.org/debian}
 
@@ -39,7 +39,6 @@ http_proxy=${http_proxy:-}			# Yes, after FAME_PROXY
 
 export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 
-# export FAME_L4FAME=${FAME_L4FAME:-http://l4fame.s3-website.us-east-2.amazonaws.com/}
 export FAME_L4FAME=${FAME_L4FAME:-http://downloads.linux.hpe.com/repo/l4fame/Debian}
 
 # A generic kernel metapackage is not created.  As we don't plan to update
@@ -105,7 +104,11 @@ function yesno() {
 
 function inDocker() {
     grep -Eq "^[[:digit:]]+:[[:alnum:]_,=]+:/docker/[[:xdigit:]]+$" /proc/$$/cgroup
-    return $?	# Is this superfluous?
+}
+
+function inHost() {	# More legible than "! inDocker"
+    inDocker
+    [ $? -eq 0 ] && return 1 || return 0
 }
 
 ###########################################################################
@@ -178,7 +181,7 @@ function verify_host_environment() {
     # bison dh-autoreconf flex gtk2-dev libglib2.0-dev livbirt-bin zlib1g-dev
     [ -x /bin/which -o -x /usr/bin/which ] || die "Missing command 'which'"
     NEED="awk brctl grep losetup qemu-img vmdebootstrap"
-    [ ! inDocker ] && NEED="$NEED libvirtd qemu-system-x86_64 virsh"
+    [ inHost ] && NEED="$NEED libvirtd qemu-system-x86_64 virsh"
     [ "$SUDO" ] && NEED="$NEED sudo"
     MISSING=
     for CMD in $NEED; do
@@ -252,6 +255,7 @@ function verify_host_environment() {
 # libvirt / virsh / qemu / kvm stuff
 
 function libvirt_bridge() {
+    [ inDocker ] && return 0
     sep Configure libvirt network bridge \"$NETWORK\"
 
     NETXML=templates/network.xml
@@ -708,47 +712,6 @@ EOSSHCONFIG
 }
 
 ###########################################################################
-# When in doubt, "qemu-system-x86_64 -device ?" or "-device virtio-net,?"
-
-function emit_qemu_invocations_DEPRECATED() {
-    DOIT=$FAME_OUTDIR/$PROJECT.bash
-    sep "\nVM invocation script is $DOIT"
-
-    cat >$DOIT <<EODOIT
-#!/bin/bash
-
-# Invoke VMs created by `basename $0`
-
-# SUDO="sudo -E"	# Uncomment this if your system needs it
-
-QEMU="\$SUDO qemu-system-x86_64 -enable-kvm"
-
-[ -z "\$DISPLAY" ] && NODISPLAY="-display none"
-
-EODOIT
-
-    exec 3>&1		# Save stdout before...
-    exec >>$DOIT	# ...hijacking it
-    for N2 in `seq -f '%02.0f' $NODES`; do
-	NODE=$HOSTUSERBASE$N2
-	# This pattern is recognized by tm-lfs as the implicit node number
-	MAC="$HPEOUI:${N2}:${N2}:${N2}"
-	echo "nohup \$QEMU -name $NODE \\"
-	echo "	-netdev bridge,id=$NETWORK,br=$NETWORK,helper=$QBH \\"
-	echo "	-device virtio-net,mac=$MAC,netdev=$NETWORK \\"
-        echo "  --object memory-backend-file,size=$FAME_SIZE,mem-path=$FAME_FAM,id=FAM,share=on \\"
-        echo "  -device ivshmem-plain,memdev=FAM \\"
-        echo "  -vnc :$N \\"
-	echo "	\$NODISPLAY $FAME_OUTDIR/$NODE.qcow2 &"
-	echo
-    done
-    exec 1>&3		# Restore stdout
-    exec 3>&-
-    chmod +x $DOIT
-    return 0
-}
-
-###########################################################################
 # Create virt-manager files
 
 function emit_libvirt_XML() {
@@ -795,9 +758,8 @@ function echo_environment() {
 # MAIN - do a few things before set -u
 
 if [ $# -ne 1 -o "${1:0:1}" = '-' ]; then
-	echo "Environment:"
 	echo_environment
-	echo -e "\nusage: `basename $0` [ -h|? ] [ VMcount ]"
+	[ inHost ] && echo -e "\nusage: `basename $0` [ -h|? ] [ VMcount ]"
 	exit 0
 fi
 typeset -ir NODES=$1	# will evaluate to zero if non-integer
@@ -818,8 +780,5 @@ manifest_template_image
 
 clone_VMs
 
-# emit_qemu_invocations
-
 emit_libvirt_XML
 
-exit 0

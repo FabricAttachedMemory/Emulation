@@ -1,19 +1,22 @@
-FROM debian:stretch-slim
+FROM debian:stretch-slim AS build
 
 LABEL description="Run emulation_configure.bash inside a Debian container"
 
-ENV DEBIAN_FRONTEND noninteractive
-ENV WD /Emulation
-
-WORKDIR ${WD}
+WORKDIR /Emulation
 
 COPY emulation_configure.bash .
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-	ca-certificates curl wget \
-	# bridge-utils grep kpartx mawk mount qemu-utils vmdebootstrap \
-	; \
-	rm -rf /var/lib/apt/lists/*; \
-	ls
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    kpartx \
+    qemu-utils \
+    vmdebootstrap \
+    wget \
+    ; \
+    rm -rf /var/lib/apt/lists/* ; \
+    ls
 
-CMD [ "./emulation_configure.bash" ]
+# Default PWD is WORKDIR
+ENTRYPOINT [ "./emulation_configure.bash" ]

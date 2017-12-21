@@ -5,6 +5,6 @@ to clean it up.
 
 docker build --build-arg http_proxy=$http_proxy --tag=fame:emulation_configure .
 
-docker run -it --name=emulation_configure fame:emulation_configure
+docker run -it --rm fame:emulation_configure
 
 

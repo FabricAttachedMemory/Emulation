@@ -1,0 +1,5 @@
+# .dockerignore for FabricAttachedMemory/Emulation
+
+.git*
+
+images4wiki
