@@ -1,21 +1,34 @@
-IMG:=fame:emulation_configure
-CONT:=junk
+BASE:=emulation_configure
+SCRIPT:=${BASE}.bash
+IMG:=fame:${BASE}
+CONT:=${BASE}
+MYENV:=myenv
 
 help:
-	@echo Target    Action
-	@echo build     Create the Docker image "${IMG}"
-	@echo bash	Turn ${IMG} into ${CONT} and start bash
-	@echo VMs	Turn ${IMG} into ${CONT} and create VMs in ${FAME_OUTDIR}
-	@echo clean	Stop and remove ${CONT}
-	@echo clean	First clean, then remove ${IMG}
+	@echo "Target   Action"
+	@echo "status   Show relevant Docker images and containers"
+	@echo "env      Dump current $FAME_XXXX variables into ${MYENV}"
+	@echo "build    Create the Docker image '${IMG}'"
+	@echo "VMs      Run ${IMG} as ${CONT} and create VMs in ${FAME_OUTDIR}"
+	@echo "clean    Stop and remove container ${CONT}"
+	@echo "mrproper First clean, then remove image ${IMG}"
+	@echo "debug    Run ${IMG} as ${CONT} and start bash"
+
+env:
+	@./${SCRIPT} | grep '=' | tee ${MYENV}
+
+status:
+	@docker images | grep -e REPOSITORY -e "${BASE}"
+	@echo
+	@docker ps -a | grep -e CONTAINER -e "${BASE}"
 
 build:
 	docker build --build-arg http_proxy=${http_proxy} --tag=${IMG} .
 
-bash:
+debug:
 	docker run --name=${CONT} -it --entrypoint bash \
-	-v ${FAME_OUTDIR}:/outdir --env-file=myenv \
-	--cap-add=ALL \
+	-v ${FAME_OUTDIR}:/outdir --env-file=${MYENV} \
+	--cap-add=ALL --privileged \
 	--device=/dev/loop-control:/dev/loop-control:rwm \
 	--device=/dev/loop0:/dev/loop0:rwm \
 	--device=/dev/loop1:/dev/loop1:rwm \
@@ -25,9 +38,9 @@ bash:
 	--device=/dev/loop5:/dev/loop5:rwm \
 	--device=/dev/loop6:/dev/loop6:rwm \
 	--device=/dev/loop7:/dev/loop7:rwm \
-	--device-cgroup-rule="c 10:236 mrw" \
-	--device-cgroup-rule="c 10:237 mrw" \
-	--device-cgroup-rule="b 254:* mrw" \
+	--device-cgroup-rule="c 10:236 mwr" \
+	--device-cgroup-rule="c 10:237 mwr" \
+	--device-cgroup-rule="b 254:* mwr" \
 	${IMG}
 
 clean:

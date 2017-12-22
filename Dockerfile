@@ -13,6 +13,7 @@ RUN apt-get update && \
     ca-certificates \
     curl \
     file \
+    iproute2 \
     kpartx \
     qemu-utils \
     strace \

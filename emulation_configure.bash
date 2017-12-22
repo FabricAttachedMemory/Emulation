@@ -480,38 +480,20 @@ function transmogrify_l4fame() {
     # the dnsmasq assigned to the virtual bridge, which will fall over
     # to the host resolver and do the right thing.
 
-    RESOLVdotCONF=$MNT/etc/resolv.conf
-    quiet $SUDO unlink $RESOLVdotCONF
-    echo "nameserver	$TORMSIP" | quiet $SUDO tee $RESOLVdotCONF
+    RESOLVdotCONF=/etc/resolv.conf
+    quiet $SUDO unlink $MNT$RESOLVdotCONF
+    # echo "nameserver	$TORMSIP" | quiet $SUDO tee $MNT$RESOLVdotCONF
+    quiet $SUDO cp $RESOLVdotCONF $MNT$RESOLVdotCONF
 
     # A repo container on this host should be expressed as localhost.
 
-    if [ "$FAME_L4FAME" ]; then		# Assume full repo, not minideb
-	if [[ $FAME_L4FAME =~ localhost ]]; then
-	    USED_L4FAME=`echo $FAME_L4FAME | sed -e "s/localhost/$TORMSIP/"`
-	else
-	    USED_L4FAME=$FAME_L4FAME
-	fi
-    	echo "deb $USED_L4FAME testing main" | quiet $SUDO tee $SOURCES
+    if [[ $FAME_L4FAME =~ localhost ]]; then
+	USED_L4FAME=`echo $FAME_L4FAME | sed -e "s/localhost/$TORMSIP/"`
     else
-    	FAME_L4FAME='http://downloads.linux.hpe.com/repo/l4fame'
-    	echo "deb $FAME_L4FAME unstable/" | quiet $SUDO tee $SOURCES
-    	echo "deb-src $FAME_L4FAME unstable/" | quiet $SUDO tee -a $SOURCES
-
-    	# Without a key, you get error message on upgrade:
-    	# W: No sandbox user '_apt' on the system, can not drop privileges
-    	# N: Updating from such a repository can't be done securely, and is
-    	#    therefore disabled by default.
-    	# N: See apt-secure(8) manpage for repository creation and user
-    	#    configuration details.
-
-    	# Assumes wget came with vmdebootstrap.  bash is for the pipe.
-    	echo "Adding L4FAME GPG key..."
-
-    	quiet $SUDO chroot $MNT /bin/bash -c \
-    		"'wget -O - https://db.debian.org/fetchkey.cgi?fingerprint=C383B778255613DFDB409D91DB221A6900000011 | apt-key add -'"
-    	[ $? -ne 0 ] && die "L4FAME GPG key installation failed"
+	USED_L4FAME=$FAME_L4FAME
     fi
+    # echo "deb $USED_L4FAME testing main" | quiet $SUDO tee $SOURCES
+    quiet $SUDO tee $SOURCES <<< "deb $USED_L4FAME testing main" 
 
     echo "Contacting $FAME_L4FAME..."
     quiet wget -O /dev/null $FAME_L4FAME > /dev/null 2>&1
