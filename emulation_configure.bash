@@ -64,6 +64,14 @@ LOG=$FAME_OUTDIR/$PROJECT.log
 TARBALL=$FAME_OUTDIR/${HOSTUSERBASE}_template.tar
 TEMPLATEIMG=$FAME_OUTDIR/${HOSTUSERBASE}_template.img
 
+# Save host values for final reports delivered from a container
+declare -A ORIG=(
+    [OUTDIR]=$FAME_OUTDIR
+    [FAM]=$FAME_FAM
+    [LOG]=$LOG
+    [TEMPLATEIMG]=$TEMPLATEIMG
+)
+
 export DEBIAN_FRONTEND=noninteractive	# preserved by chroot
 export DEBCONF_NONINTERACTIVE_SEEN=true
 export LC_ALL=C LANGUAGE=C LANG=C
@@ -157,8 +165,6 @@ EOMSG
 # Ass-u-me coreutils is installed.  Can't use die() until certain things
 # check out.
 
-[ `id -u` -ne 0 ] && SUDO="sudo -E" || SUDO=
-
 function _fixup_environment() {
     inHost && return
     export FAME_OUTDIR=$DOCKER_OUTDIR
@@ -168,6 +174,8 @@ function _fixup_environment() {
     export TEMPLATEIMG=$DOCKER_OUTDIR/`basename $TEMPLATEIMG`
     export USER=`whoami`
 }
+
+[ `id -u` -ne 0 ] && SUDO="sudo -E" || SUDO=
 
 function verify_host_environment() {
     sep Verifying host environment
@@ -257,7 +265,6 @@ function verify_host_environment() {
     fi
 
     # Space for 2 raw image files, the tarball, all qcows, and slop
-    [ ! -d "$FAME_OUTDIR" ] && die "$FAME_OUTDIR is not a directory"
     let GNEEDED=16+1+$NODES+1
     let KNEEDED=1000000*$GNEEDED
     TMPFREE=`df "$FAME_OUTDIR" | awk '/^\// {print $4}'`
@@ -482,8 +489,8 @@ function transmogrify_l4fame() {
 
     RESOLVdotCONF=/etc/resolv.conf
     quiet $SUDO unlink $MNT$RESOLVdotCONF
-    # echo "nameserver	$TORMSIP" | quiet $SUDO tee $MNT$RESOLVdotCONF
-    quiet $SUDO cp $RESOLVdotCONF $MNT$RESOLVdotCONF
+    quiet $SUDO tee $MNT$RESOLVdotCONF <<< "nameserver	$TORMSIP" # first
+    grep nameserver $RESOLVdotCONF | quiet $SUDO tee -a $MNT$RESOLVdotCONF
 
     # A repo container on this host should be expressed as localhost.
 
@@ -714,7 +721,7 @@ EOSSHCONFIG
 # Create virt-manager files
 
 function emit_libvirt_XML() {
-    sep "\nvirsh/virt-manager files nodeXX.xml are in $FAME_OUTDIR"
+    sep "\nvirsh/virt-manager files nodeXX.xml are in ${ORIG[OUTDIR]}"
     for N2 in `seq -f '%02.0f' $NODES`; do
 	NODEXX=$HOSTUSERBASE$N2
 	# This pattern is recognized by tm-lfs as the implicit node number
@@ -736,7 +743,7 @@ function emit_libvirt_XML() {
 	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $NODEXML
     done
     cp templates/node_virsh.sh $FAME_OUTDIR
-    echo "Change directory to $FAME_OUTDIR and run node_virsh.sh"
+    echo "Change directory to ${ORIG[OUTDIR]} and run node_virsh.sh"
     return 0
 }
 
