@@ -8,7 +8,7 @@ help:
 	@echo "Target   Action"
 	@echo "status   Show relevant Docker images and containers"
 	@echo "env      Dump current $FAME_XXXX variables into ${MYENV}"
-	@echo "build    Create the Docker image '${IMG}'"
+	@echo "image    Create the Docker image '${IMG}'"
 	@echo "VMs      Run ${IMG} as ${CONT} and create VMs in ${FAME_OUTDIR}"
 	@echo "clean    Stop and remove container ${CONT}"
 	@echo "mrproper First clean, then remove image ${IMG}"
@@ -22,7 +22,7 @@ status:
 	@echo
 	@docker ps -a | grep -e CONTAINER -e "${BASE}"
 
-build:
+image:
 	docker build --build-arg http_proxy=${http_proxy} --tag=${IMG} .
 
 debug:

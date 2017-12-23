@@ -61,16 +61,7 @@ typeset -r DOCKER_OUTDIR=/outdir		# See Docker.md
 
 # Can be reset under Docker so no typeset -r
 LOG=$FAME_OUTDIR/$PROJECT.log
-TARBALL=$FAME_OUTDIR/${HOSTUSERBASE}_template.tar
 TEMPLATEIMG=$FAME_OUTDIR/${HOSTUSERBASE}_template.img
-
-# Save host values for final reports delivered from a container
-declare -A ORIG=(
-    [OUTDIR]=$FAME_OUTDIR
-    [FAM]=$FAME_FAM
-    [LOG]=$LOG
-    [TEMPLATEIMG]=$TEMPLATEIMG
-)
 
 export DEBIAN_FRONTEND=noninteractive	# preserved by chroot
 export DEBCONF_NONINTERACTIVE_SEEN=true
@@ -161,44 +152,55 @@ EOMSG
 }
 
 ###########################################################################
-# vmdebootstrap requires root, but first insure other commands exist.
-# Ass-u-me coreutils is installed.  Can't use die() until certain things
-# check out.
+# Save host values for final processing delivered from a container.
 
-function _fixup_environment() {
+declare -A ONHOST=(
+    [FAME_OUTDIR]=$FAME_OUTDIR
+    [FAME_FAM]=$FAME_FAM
+)
+
+function fixup_Docker_environment() {
     inHost && return
     export FAME_OUTDIR=$DOCKER_OUTDIR
     export FAME_FAM=$DOCKER_OUTDIR/`basename $FAME_FAM`
     export LOG=$DOCKER_OUTDIR/`basename $LOG`
-    export TARBALL=$DOCKER_OUTDIR/`basename $TARBALL`
     export TEMPLATEIMG=$DOCKER_OUTDIR/`basename $TEMPLATEIMG`
     export USER=`whoami`
 }
 
+###########################################################################
+# Check out major file system stuff. FAM must be under OUTDIR in a
+# container.  vmdebootstrap requires root, but there are other commands,
+# especially in the host for running VMs.  Ass-u-me coreutils is installed.
+
 [ `id -u` -ne 0 ] && SUDO="sudo -E" || SUDO=
 
-function verify_host_environment() {
+function verify_environment() {
     sep Verifying host environment
-
-    _fixup_environment
-
-    [ ! -d "$FAME_OUTDIR" ] && echo "$FAME_OUTDIR does not exist" >&2 && exit 1
-    [ ! -w "$FAME_OUTDIR" ] && echo "$FAME_OUTDIR is not writeable" >&2 && exit 1
-
-    # Chicken and egg: sudo has not yet been verified
-    if [ -f $LOG ]; then
-	PREV=$LOG.previous
-	quiet rm -f $PREV
-	[  $? -ne 0 ] && echo "Cannot rm $PREV, please do so" >&2 && exit 1
-	quiet mv -f $LOG $LOG.previous # vmdebootstrap will rewrite it
-	[ $? -ne 0 ] && echo "Cannot mv $LOG, please remove it" >&2 && exit 1
-    fi
-    echo -e "`date`\n" > $LOG
-    chmod 666 $LOG
 
     # Close some obvious holes before SUDO
     unset LD_LIBRARY_PATH
     export PATH="/bin:/usr/bin:/sbin:/usr/sbin"
+
+    fixup_Docker_environment
+
+    [ -d "$FAME_OUTDIR" ] || die "$FAME_OUTDIR does not exist"
+    [ -w "$FAME_OUTDIR" ] || die "$FAME_OUTDIR is not writeable"
+    [ "${ONHOST[FAME_FAM]}" ] || die "FAME_FAM variable must be specified"
+    [ -f "$FAME_FAM" ] || die "$FAME_FAM does not exist"
+    [ -w "$FAME_FAM" ] || die "$FAME_FAM is not writeable"
+
+    # sudo has not yet been verified
+    if [ -f $LOG ]; then
+	PREV=$LOG.previous
+	quiet rm -f $PREV
+	[  $? -eq 0 ] || die "Cannot rm $PREV, please do so"
+	quiet mv -f $LOG $LOG.previous # vmdebootstrap will rewrite it
+	[ $? -eq 0 ] || die "Cannot mv $LOG, please remove it"
+    fi
+    echo -e "`date`\n" > $LOG
+    chmod 666 $LOG
+    [ $? -eq 0 ] || die "Cannot start $LOG"
 
     # Another user submitted errata which may include
     # bison dh-autoreconf flex gtk2-dev libglib2.0-dev livbirt-bin zlib1g-dev
@@ -221,7 +223,7 @@ function verify_host_environment() {
 	SUDO_USER=${SUDO_USER:-root}
     fi
 
-    # Got RAM/DRAM for the CPU?  Earlier QEMU had trouble booting this
+    # Got RAM/DRAM for the VMs?  Earlier QEMU had trouble booting this
     # environment in less than this space, could have been page tables
     # for larger IVSHMEM.  FIXME: force KiB values, verify against FAM_SIZE.
     [ $FAME_VDRAM -lt 786432 ] && die "FAME_VDRAM=$FAME_VDRAM KiB is too small"
@@ -229,9 +231,7 @@ function verify_host_environment() {
     set -- `head -1 /proc/meminfo`
     [ $2 -lt $TMP ] && die "Insufficient real RAM for $NODES nodes of $FAME_VDRAM KiB each"
 
-    # Got FAM?  And is it sized correctly?
-    [ -z "$FAME_FAM" ] && die "FAME_FAM variable must be specified"
-    [ ! -f "$FAME_FAM" ] && die "$FAME_FAM not found"
+    # Is FAM sized correctly?
     T=`stat -c %s "$FAME_FAM"`
     # Shell boolean values are inverse of Python
     python -c "import math; e=math.log($T, 2); exit(not(e == int(e)))"
@@ -340,6 +340,7 @@ typeset -r MNT=/mnt/$PROJECT
 typeset -r BINDFWD="/proc /sys /run /dev /dev/pts"
 typeset -r BINDREV="`echo $BINDFWD | tr ' ' '\n' | tac`"
 LAST_KPARTX=
+MOUNTDEV=
 
 function mount_image() {
     if [ -d $MNT ]; then	# Always try to undo it
@@ -349,6 +350,7 @@ function mount_image() {
     	quiet $SUDO umount $MNT
 	[ "$LAST_KPARTX" ] && quiet $SUDO kpartx -d $LAST_KPARTX
 	LAST_KPARTX=
+	MOUNTDEV=
 	quiet $SUDO rmdir $MNT	# Leave no traces
     fi
     [ $# -eq 0 ] && return 0
@@ -368,8 +370,7 @@ function mount_image() {
     if [ $? -ne 0 ]; then
     	$SUDO kpartx -d $LAST_KPARTX
 	LAST_KPARTX=
-    	echo "mount of $LOCALIMG failed" >&2
-	exit 1	# die() might cause infinite recursion
+	return 1	# let caller make decision on forward progress
     fi
 
     # bind mounts to make /etc/grub.d/XXX happy when they calls grub-probe
@@ -534,6 +535,25 @@ function transmogrify_l4fame() {
 }
 
 ###########################################################################
+# /boot/grub/grub.cfg, built "on the host", has boot entries of the form
+# linux /boot/vmlinux-4-14.9-l4fame+ roo=UUID=xyzzy...
+# Built under Docker, the entry is like
+# linux /boot/vmlinux-4-14.9-l4fame+ roo=/dev/mapper/loop0p1
+# That mapper file also exists during "on host" building, and I don't
+# really know where the confusion takes place.  I'm guessing the root
+# mount device in the chroot is different.  Just fix it.
+
+function fixup_Docker_grub() {
+    inHost && return
+    GRUBCFG=$MNT/boot/grub/grub.cfg
+    mount_image $TEMPLATEIMG || die "Can't mount $TEMPLATEIMG for grub fixup"
+    UUID=`blkid -o export $MOUNTDEV | grep UUID`
+    [ "$UUID" ] || die "Cannot recover UUID from $MOUNTDEV"
+    sed -ie "s.root=$MOUNTDEV.root=UUID=$UUID." $GRUBCFG
+    mount_image
+}
+
+###########################################################################
 # This takes about six minutes if the mirror is unproxied on a LAN.  YMMV.
 
 function manifest_template_image() {
@@ -541,7 +561,7 @@ function manifest_template_image() {
 
     validate_template_image
     RET=$?
-    [ $RET -eq 255 ] && quiet $SUDO rm -f $TEMPLATEIMG && RET=0
+    [ $RET -eq 255 ] && quiet $SUDO rm -f $TEMPLATEIMG # corrupt
     if [ $RET -eq 0 ]; then
     	yesno "Re-use existing $TEMPLATEIMG"
 	[ $? -eq 0 ] && echo "Keep existing $TEMPLATEIMG" && return 0
@@ -592,6 +612,8 @@ function manifest_template_image() {
     validate_template_image || die "Validation of fresh $TEMPLATEIMG failed"
 
     quiet $SUDO mv -f dpkg.list $FAME_OUTDIR	# "pklist" is hardcoded here
+
+    fixup_Docker_grub
 
     transmogrify_l4fame || die "Addition of L4FAME repo failed"
 
@@ -721,29 +743,30 @@ EOSSHCONFIG
 # Create virt-manager files
 
 function emit_libvirt_XML() {
-    sep "\nvirsh/virt-manager files nodeXX.xml are in ${ORIG[OUTDIR]}"
+    sep "\nvirsh files nodeXX.xml are in ${ONHOST[FAME_OUTDIR]}"
     for N2 in `seq -f '%02.0f' $NODES`; do
 	NODEXX=$HOSTUSERBASE$N2
 	# This pattern is recognized by tm-lfs as the implicit node number
 	MACADDRXX="$HPEOUI:${N2}:${N2}:${N2}"
-	QCOWXX=$FAME_OUTDIR/$NODEXX.qcow2
 	NODEXML=$FAME_OUTDIR/$NODEXX.xml
+	# Referenced inside nodeXX.xml
+	QCOWXX=${ONHOST[FAME_OUTDIR]}/$NODEXX.qcow2
 
 	grep -q 'model name.*AMD' /proc/cpuinfo
 	[ $? -eq 0 ] && MODEL=amd || MODEL=intel
 	SRCXML=templates/node.$MODEL.xml
-	cp $SRCXML $NODEXML
+	cp -f $SRCXML $NODEXML
 
 	sed -i -e "s!NODEXX!$NODEXX!" $NODEXML
 	sed -i -e "s!QCOWXX!$QCOWXX!" $NODEXML
 	sed -i -e "s!MACADDRXX!$MACADDRXX!" $NODEXML
 	sed -i -e "s!FAME_VDRAM!$FAME_VDRAM!" $NODEXML
 	sed -i -e "s!FAME_VCPUS!$FAME_VCPUS!" $NODEXML
-	sed -i -e "s!FAME_FAM!$FAME_FAM!" $NODEXML
+	sed -i -e "s!FAME_FAM!${ONHOST[FAME_FAM]}!" $NODEXML
 	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $NODEXML
     done
     cp templates/node_virsh.sh $FAME_OUTDIR
-    echo "Change directory to ${ORIG[OUTDIR]} and run node_virsh.sh"
+    echo "Change directory to ${ONHOST[FAME_OUTDIR]} and run node_virsh.sh"
     return 0
 }
 
@@ -776,7 +799,7 @@ set -u
 
 trap "rm -f debootstrap.log; exit 0" TERM QUIT INT HUP EXIT # always empty
 
-verify_host_environment
+verify_environment
 
 libvirt_bridge
 
