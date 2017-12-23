@@ -536,7 +536,7 @@ function transmogrify_l4fame() {
 
 ###########################################################################
 # /boot/grub/grub.cfg, built "on the host", has boot entries of the form
-# linux /boot/vmlinux-4-14.9-l4fame+ roo=UUID=xyzzy...
+# linux /boot/vmlinux-4-14.9-l4fame+ root=UUID=xyzzy...
 # Built under Docker, the entry is like
 # linux /boot/vmlinux-4-14.9-l4fame+ roo=/dev/mapper/loop0p1
 # That mapper file also exists during "on host" building, and I don't
@@ -613,9 +613,9 @@ function manifest_template_image() {
 
     quiet $SUDO mv -f dpkg.list $FAME_OUTDIR	# "pklist" is hardcoded here
 
-    fixup_Docker_grub
-
     transmogrify_l4fame || die "Addition of L4FAME repo failed"
+
+    fixup_Docker_grub	# after all chances to update_grub
 
     return 0
 }
@@ -735,6 +735,16 @@ EOSSHCONFIG
 	echo Converting $NEWIMG into $QCOW2
 	quiet qemu-img convert -f raw -O qcow2 $NEWIMG $QCOW2
 	quiet rm -f $NEWIMG
+
+	# systemd "Creating volatile files and directories" will hang if
+	# the mounted FS is not readable.  That starts at the qcow2 file.
+	if inHost; then
+		$SUDO chown libvirt-qemu:libvirt-qemu $QCOW2
+	else
+		# See the Makefile
+		$SUDO chown $LVQUID:$LVQGID $QCOW2
+	fi
+	$SUDO chmod 660 $QCOW2
     done
     return 0
 }

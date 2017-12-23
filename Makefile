@@ -4,6 +4,9 @@ IMG:=fame:${BASE}
 CONT:=${BASE}
 MYENV:=myenv
 
+LVQUID:=$(shell grep libvirt-qemu /etc/passwd | cut -d':' -f3)
+LVQGID:=$(shell grep libvirt-qemu /etc/group  | cut -d':' -f3)
+
 help:
 	@echo "Target   Action"
 	@echo "status   Show relevant Docker images and containers"
@@ -27,6 +30,7 @@ image:
 
 debug:
 	docker run --name=${CONT} -it --entrypoint bash \
+	-e LVQUID=${LVQUID} -e LVQGID=${LVQGID} \
 	-v ${FAME_OUTDIR}:/outdir --env-file=${MYENV} \
 	--cap-add=ALL --privileged \
 	--device=/dev/loop-control:/dev/loop-control:rwm \
@@ -42,6 +46,9 @@ debug:
 	--device-cgroup-rule="c 10:237 mwr" \
 	--device-cgroup-rule="b 254:* mwr" \
 	${IMG}
+	@# Since it was probably done manually,
+	@sudo chown libvirt-qemu:libvirt-qemu ${FAME_FAM}
+	@sudo chmod 660 ${FAME_FAM}
 
 clean:
 	docker stop ${CONT} 2>/dev/null || true
