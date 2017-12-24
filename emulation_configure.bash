@@ -547,9 +547,9 @@ function fixup_Docker_grub() {
     inHost && return
     GRUBCFG=$MNT/boot/grub/grub.cfg
     mount_image $TEMPLATEIMG || die "Can't mount $TEMPLATEIMG for grub fixup"
-    UUID=`blkid -o export $MOUNTDEV | grep UUID`
+    UUID=`blkid -o export $MOUNTDEV | grep -E '^UUID='`
     [ "$UUID" ] || die "Cannot recover UUID from $MOUNTDEV"
-    sed -ie "s.root=$MOUNTDEV.root=UUID=$UUID." $GRUBCFG
+    sed -ie "s.root=$MOUNTDEV.root=$UUID." $GRUBCFG
     mount_image
 }
 
