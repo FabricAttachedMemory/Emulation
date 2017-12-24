@@ -4,13 +4,15 @@ IMG:=fame:${BASE}
 CONT:=${BASE}
 MYENV:=myenv
 
+$(shell [ ! -d "${FAME_OUTDIR}" ] && echo "Missing FAME_OUTDIR=${FAME_OUTDIR}" >&2)
+$(shell [ ! -f "${FAME_FAM}" ] && echo "Missing FAME_FAM=${FAME_FAM}" >&2)
 LVQUID:=$(shell grep libvirt-qemu /etc/passwd | cut -d':' -f3)
 LVQGID:=$(shell grep libvirt-qemu /etc/group  | cut -d':' -f3)
 
 help:
 	@echo "Target   Action"
 	@echo "status   Show relevant Docker images and containers"
-	@echo "env      Dump current $FAME_XXXX variables into ${MYENV}"
+	@echo "env      Dump current FAME_XXXX variables into ${MYENV}"
 	@echo "image    Create the Docker image '${IMG}'"
 	@echo "VMs      Run ${IMG} as ${CONT} and create VMs in ${FAME_OUTDIR}"
 	@echo "clean    Stop and remove container ${CONT}"

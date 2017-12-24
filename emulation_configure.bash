@@ -20,11 +20,11 @@
 # See http://github.com/FabricAttachedMemory for more details.
 
 # Set these in your environment to override the following defaults.
-# Note: FAME_OUTDIR was originally TMPDIR, but that variable is suppressed
+# Note: FAME_DIR was originally TMPDIR, but that variable is suppressed
 # by glibc on setuid programs which breaks under certain uses of sudo.
 
-FAME_OUTDIR=${FAME_OUTDIR:-/tmp}
-export FAME_OUTDIR=`dirname "$FAME_OUTDIR/xxx"`	# chomps a trailing slash
+FAME_DIR=${FAME_DIR:-/tmp}
+export FAME_DIR=`dirname "$FAME_DIR/xxx"`	# chomps a trailing slash
 
 export FAME_VCPUS=${FAME_VCPUS:-2}		# No idiot checks yet
 
@@ -57,11 +57,11 @@ typeset -r NETWORK=${HOSTUSERBASE}_emul		# libvirt name length limits
 typeset -r HPEOUI="48:50:42"
 typeset -r OCTETS123=192.168.42			# see fabric_emul.net.xml
 typeset -r TORMSIP=$OCTETS123.254
-typeset -r DOCKER_OUTDIR=/outdir		# See Docker.md
+typeset -r DOCKER_DIR=/outdir		# See Docker.md
 
 # Can be reset under Docker so no typeset -r
-LOG=$FAME_OUTDIR/$PROJECT.log
-TEMPLATEIMG=$FAME_OUTDIR/${HOSTUSERBASE}_template.img
+LOG=$FAME_DIR/$PROJECT.log
+TEMPLATEIMG=$FAME_DIR/${HOSTUSERBASE}_template.img
 
 export DEBIAN_FRONTEND=noninteractive	# preserved by chroot
 export DEBCONF_NONINTERACTIVE_SEEN=true
@@ -155,21 +155,21 @@ EOMSG
 # Save host values for final processing delivered from a container.
 
 declare -A ONHOST=(
-    [FAME_OUTDIR]=$FAME_OUTDIR
+    [FAME_DIR]=$FAME_DIR
     [FAME_FAM]=$FAME_FAM
 )
 
 function fixup_Docker_environment() {
     inHost && return
-    export FAME_OUTDIR=$DOCKER_OUTDIR
-    export FAME_FAM=$DOCKER_OUTDIR/`basename $FAME_FAM`
-    export LOG=$DOCKER_OUTDIR/`basename $LOG`
-    export TEMPLATEIMG=$DOCKER_OUTDIR/`basename $TEMPLATEIMG`
+    export FAME_DIR=$DOCKER_DIR
+    export FAME_FAM=$DOCKER_DIR/`basename $FAME_FAM`
+    export LOG=$DOCKER_DIR/`basename $LOG`
+    export TEMPLATEIMG=$DOCKER_DIR/`basename $TEMPLATEIMG`
     export USER=`whoami`
 }
 
 ###########################################################################
-# Check out major file system stuff. FAM must be under OUTDIR in a
+# Check out major file system stuff. FAM must be under DIR in a
 # container.  vmdebootstrap requires root, but there are other commands,
 # especially in the host for running VMs.  Ass-u-me coreutils is installed.
 
@@ -184,8 +184,8 @@ function verify_environment() {
 
     fixup_Docker_environment
 
-    [ -d "$FAME_OUTDIR" ] || die "$FAME_OUTDIR does not exist"
-    [ -w "$FAME_OUTDIR" ] || die "$FAME_OUTDIR is not writeable"
+    [ -d "$FAME_DIR" ] || die "$FAME_DIR does not exist"
+    [ -w "$FAME_DIR" ] || die "$FAME_DIR is not writeable"
     [ "${ONHOST[FAME_FAM]}" ] || die "FAME_FAM variable must be specified"
     [ -f "$FAME_FAM" ] || die "$FAME_FAM does not exist"
     [ -w "$FAME_FAM" ] || die "$FAME_FAM is not writeable"
@@ -233,8 +233,9 @@ function verify_environment() {
 
     # Is FAM sized correctly?
     T=`stat -c %s "$FAME_FAM"`
-    # Shell boolean values are inverse of Python
-    python -c "import math; e=math.log($T, 2); exit(not(e == int(e)))"
+    # Shell boolean values are inverse of Python.  512G (2^39) has a log
+    # error of 10**-17, so throw away noise.
+    python -c "import math; e=round(math.log($T, 2), 5); exit(not(e == int(e)))"
     [ $? -ne 0 ] && die "$FAME_FAM size $T is not a power of 2"
 
     # QEMU limit is a function of the (pass-through) host CPU and available
@@ -267,10 +268,10 @@ function verify_environment() {
     # Space for 2 raw image files, the tarball, all qcows, and slop
     let GNEEDED=16+1+$NODES+1
     let KNEEDED=1000000*$GNEEDED
-    TMPFREE=`df "$FAME_OUTDIR" | awk '/^\// {print $4}'`
-    [ $TMPFREE -lt $KNEEDED ] && die "$FAME_OUTDIR has less than $GNEEDED G free"
+    TMPFREE=`df "$FAME_DIR" | awk '/^\// {print $4}'`
+    [ $TMPFREE -lt $KNEEDED ] && die "$FAME_DIR has less than $GNEEDED G free"
 
-    echo_environment EXPORT > $FAME_OUTDIR/env.sh	# For next time
+    echo_environment EXPORT > $FAME_DIR/env.sh	# For next time
 
     return 0
 }
@@ -602,7 +603,7 @@ function manifest_template_image() {
     $VMD --log=$LOG --image=$TEMPLATEIMG \
     	--mirror=$FAME_MIRROR --owner=$SUDO_USER
     RET=$?
-    quiet $SUDO chown $SUDO_USER "$FAME_OUTDIR/${HOSTUSERBASE}.*" 	# --owner bug
+    quiet $SUDO chown $SUDO_USER "$FAME_DIR/${HOSTUSERBASE}.*" 	# --owner bug
     if [ $RET -ne 0 -o ! -f $TEMPLATEIMG ]; then
 	BAD=`mount | grep '/dev/loop[[:digit:]]+p[[:digit:]]+'`
 	[ $BAD ] && echo "mount of $BAD may be a problem" | tee -a $LOG
@@ -611,7 +612,7 @@ function manifest_template_image() {
 
     validate_template_image || die "Validation of fresh $TEMPLATEIMG failed"
 
-    quiet $SUDO mv -f dpkg.list $FAME_OUTDIR	# "pklist" is hardcoded here
+    quiet $SUDO mv -f dpkg.list $FAME_DIR	# "pklist" is hardcoded here
 
     transmogrify_l4fame || die "Addition of L4FAME repo failed"
 
@@ -692,7 +693,7 @@ function clone_VMs()
     sep Generating file system images for $NODES virtual machines
     for N2 in `seq -f '%02.0f' $NODES`; do
     	NEWHOST=$HOSTUSERBASE$N2
-	QCOW2="$FAME_OUTDIR/$NEWHOST.qcow2"
+	QCOW2="$FAME_DIR/$NEWHOST.qcow2"
 	if [ -f $QCOW2 ]; then
 	    yesno "Re-use $QCOW2"
 	    [ $? -eq 0 ] && echo "Keep existing $QCOW2" && continue
@@ -700,7 +701,7 @@ function clone_VMs()
 	$SUDO rm -f $QCOW2
 
 	echo "Customize $NEWHOST..."
-    	NEWIMG="$FAME_OUTDIR/$NEWHOST.img"
+    	NEWIMG="$FAME_DIR/$NEWHOST.img"
 	quiet cp $TEMPLATEIMG $NEWIMG
 
 	# Fixup files
@@ -753,14 +754,14 @@ EOSSHCONFIG
 # Create virt-manager files
 
 function emit_libvirt_XML() {
-    sep "\nvirsh files nodeXX.xml are in ${ONHOST[FAME_OUTDIR]}"
+    sep "\nvirsh files nodeXX.xml are in ${ONHOST[FAME_DIR]}"
     for N2 in `seq -f '%02.0f' $NODES`; do
 	NODEXX=$HOSTUSERBASE$N2
 	# This pattern is recognized by tm-lfs as the implicit node number
 	MACADDRXX="$HPEOUI:${N2}:${N2}:${N2}"
-	NODEXML=$FAME_OUTDIR/$NODEXX.xml
+	NODEXML=$FAME_DIR/$NODEXX.xml
 	# Referenced inside nodeXX.xml
-	QCOWXX=${ONHOST[FAME_OUTDIR]}/$NODEXX.qcow2
+	QCOWXX=${ONHOST[FAME_DIR]}/$NODEXX.qcow2
 
 	grep -q 'model name.*AMD' /proc/cpuinfo
 	[ $? -eq 0 ] && MODEL=amd || MODEL=intel
@@ -775,8 +776,8 @@ function emit_libvirt_XML() {
 	sed -i -e "s!FAME_FAM!${ONHOST[FAME_FAM]}!" $NODEXML
 	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $NODEXML
     done
-    cp templates/node_virsh.sh $FAME_OUTDIR
-    echo "Change directory to ${ONHOST[FAME_OUTDIR]} and run node_virsh.sh"
+    cp templates/node_virsh.sh $FAME_DIR
+    echo "Change directory to ${ONHOST[FAME_DIR]} and run node_virsh.sh"
     return 0
 }
 
