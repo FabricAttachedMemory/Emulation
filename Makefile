@@ -10,17 +10,17 @@ LVQUID:=$(shell grep libvirt-qemu /etc/passwd | cut -d':' -f3)
 LVQGID:=$(shell grep libvirt-qemu /etc/group  | cut -d':' -f3)
 
 help:
-	@echo "Target   Action"
-	@echo "status   Show relevant Docker images and containers"
-	@echo "env      Dump current FAME_XXXX variables into ${MYENV}"
-	@echo "image    Create the Docker image '${IMG}'"
-	@echo "VMs      Run ${IMG} as ${CONT} and create VMs in ${FAME_OUTDIR}"
-	@echo "clean    Stop and remove container ${CONT}"
-	@echo "mrproper First clean, then remove image ${IMG}"
-	@echo "debug    Run ${IMG} as ${CONT} and start bash"
+	@echo "Target    Action"
+	@echo "status    Show relevant Docker images and containers"
+	@echo "env       Dump current FAME_XXXX variables into ${MYENV}"
+	@echo "image     Create the Docker image"
+	@echo "container Create the container and enter in a shell"
+	@echo "shell     Re-enter the container in a shell"
+	@echo "clean     Stop and remove container ${CONT}"
+	@echo "mrproper  First clean, then remove image ${IMG}"
 
 env:
-	@./${SCRIPT} | grep '=' | tee ${MYENV}
+	@./${SCRIPT} | grep '=' | sed -e 's/export //' | tee ${MYENV}
 
 status:
 	@docker images | grep -e REPOSITORY -e "${BASE}"
@@ -30,7 +30,7 @@ status:
 image:
 	docker build --build-arg http_proxy=${http_proxy} --tag=${IMG} .
 
-debug:
+container:
 	docker run --name=${CONT} -it --entrypoint bash \
 	-e LVQUID=${LVQUID} -e LVQGID=${LVQGID} \
 	-v ${FAME_OUTDIR}:/outdir --env-file=${MYENV} \
@@ -48,9 +48,10 @@ debug:
 	--device-cgroup-rule="c 10:237 mwr" \
 	--device-cgroup-rule="b 254:* mwr" \
 	${IMG}
-	@# Since it was probably done manually,
-	@sudo chown libvirt-qemu:libvirt-qemu ${FAME_FAM}
-	@sudo chmod 660 ${FAME_FAM}
+
+shell:
+	docker start ${CONT}
+	docker exec -it ${CONT} bash
 
 clean:
 	docker stop ${CONT} 2>/dev/null || true

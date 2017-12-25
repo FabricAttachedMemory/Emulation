@@ -23,14 +23,16 @@
 # Note: FAME_DIR was originally TMPDIR, but that variable is suppressed
 # by glibc on setuid programs which breaks under certain uses of sudo.
 
-FAME_DIR=${FAME_DIR:-/tmp}
-export FAME_DIR=`dirname "$FAME_DIR/xxx"`	# chomps a trailing slash
+# Blanks for FAME_DIR and FAME_FAM will throw an error later.
+FAME_DIR=${FAME_DIR:-}
+[ "$FAME_DIR" ] && FAME_DIR=`dirname "$FAME_DIR/xxx"`	# chomp trailing slash
+export FAME_DIR
+
+export FAME_FAM=${FAME_FAM:-}
 
 export FAME_VCPUS=${FAME_VCPUS:-2}		# No idiot checks yet
 
 export FAME_VDRAM=${FAME_VDRAM:-786432}
-
-export FAME_FAM=${FAME_FAM:-}			# blank will throw an error
 
 export FAME_MIRROR=${FAME_MIRROR:-http://ftp.us.debian.org/debian}
 
@@ -57,7 +59,7 @@ typeset -r NETWORK=${HOSTUSERBASE}_emul		# libvirt name length limits
 typeset -r HPEOUI="48:50:42"
 typeset -r OCTETS123=192.168.42			# see fabric_emul.net.xml
 typeset -r TORMSIP=$OCTETS123.254
-typeset -r DOCKER_DIR=/outdir		# See Docker.md
+typeset -r DOCKER_DIR=/outdir			# See Docker.md
 
 # Can be reset under Docker so no typeset -r
 LOG=$FAME_DIR/$PROJECT.log
@@ -152,7 +154,7 @@ EOMSG
 }
 
 ###########################################################################
-# Save host values for final processing delivered from a container.
+# Save original host values for final processing delivered from a container.
 
 declare -A ONHOST=(
     [FAME_DIR]=$FAME_DIR
@@ -166,6 +168,20 @@ function fixup_Docker_environment() {
     export LOG=$DOCKER_DIR/`basename $LOG`
     export TEMPLATEIMG=$DOCKER_DIR/`basename $TEMPLATEIMG`
     export USER=`whoami`
+}
+
+function echo_environment() {
+    [ $# -gt 0 ] && PREFIX="$1 " || PREFIX=	# But no gratuitous space!
+    echo "${PREFIX}http_proxy=$http_proxy"
+    VARS=`env | grep FAME_ | cut -d= -f1 | sort`
+    for V in $VARS; do
+    	if [[ ${!ONHOST[@]} =~ $V ]]; then	# match keys
+		VAL=${ONHOST[$V]}
+    	else
+		VAL=${!V}	# dereference V like a pointer
+	fi
+	echo "$PREFIX$V=$VAL"
+    done
 }
 
 ###########################################################################
@@ -182,7 +198,13 @@ function verify_environment() {
     unset LD_LIBRARY_PATH
     export PATH="/bin:/usr/bin:/sbin:/usr/sbin"
 
-    fixup_Docker_environment
+    NEEDS=
+    for V in FAME_DIR FAME_FAM; do
+	[ "${!V}" ] || NEEDS="$NEEDS $V"
+    done
+    [ "$NEEDS" ] && echo "Set and export variable(s) $NEEDS" >&2 && exit 1
+
+    fixup_Docker_environment	# May change a few working variables
 
     [ -d "$FAME_DIR" ] || die "$FAME_DIR does not exist"
     [ -w "$FAME_DIR" ] || die "$FAME_DIR is not writeable"
@@ -244,7 +266,7 @@ function verify_environment() {
     # check in lfs_shadow.py; if the value is too big, IVSHMEM is bad
     # from the guest point of view.
     let TMP=$T/1024/1024/1024
-    export FAME_SIZE=${TMP}G
+    FAME_SIZE=${TMP}G	# NOT exported
     quiet echo "$FAME_FAM = $FAME_SIZE"
     [ $TMP -lt 1 ] && die "$FAME_FAM size $T is less than 1G"
     [ $TMP -gt 512 ] && echo "$FAME_FAM size $TMP is greater than 512G"
@@ -271,7 +293,7 @@ function verify_environment() {
     TMPFREE=`df "$FAME_DIR" | awk '/^\// {print $4}'`
     [ $TMPFREE -lt $KNEEDED ] && die "$FAME_DIR has less than $GNEEDED G free"
 
-    echo_environment EXPORT > $FAME_DIR/env.sh	# For next time
+    echo_environment export > $FAME_DIR/env.sh	# For next time
 
     return 0
 }
@@ -782,22 +804,9 @@ function emit_libvirt_XML() {
 }
 
 ###########################################################################
-
-function echo_environment() {
-    FAME_FAM=${FAME_FAM:-"NEEDS-TO-BE-SET!"}
-    echo "http_proxy=$http_proxy"
-    _VARS=`env | grep FAME_ | sort`
-    for V in $_VARS; do echo $V; done
-    if [ $# -gt 0 ]; then
-	_VARS=`cut -d= -f1 <<< $_VARS`
-	for V in $_VARS; do echo "export $V"; done
-    fi
-}
-
-###########################################################################
 # MAIN - do a few things before set -u
 
-if [ $# -ne 1 -o "${1:0:1}" = '-' ]; then
+if [ $# -ne 1 -o "${1:0:1}" = '-' ]; then	# Show current settings
 	echo_environment
 	inHost && echo -e "\nusage: `basename $0` [ -h|? ] [ VMcount ]"
 	exit 0
