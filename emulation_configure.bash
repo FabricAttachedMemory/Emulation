@@ -59,7 +59,7 @@ typeset -r NETWORK=${HOSTUSERBASE}_emul		# libvirt name length limits
 typeset -r HPEOUI="48:50:42"
 typeset -r OCTETS123=192.168.42			# see fabric_emul.net.xml
 typeset -r TORMSIP=$OCTETS123.254
-typeset -r DOCKER_DIR=/outdir			# See Docker.md
+typeset -r DOCKER_DIR=/fame_dir			# See Makefile and Docker.md
 
 # Can be reset under Docker so no typeset -r
 LOG=$FAME_DIR/$PROJECT.log

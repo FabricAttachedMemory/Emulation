@@ -35,7 +35,7 @@ Then you can run the FAME VMs on your native host.
 
 1. ```docker build --build-arg http_proxy=$http_proxy --tag=fame:emulation_configure .```
 
-1. ```docker run -v $FAME_OUTDIR:/outdir --env-file=myenv -it --rm fame:emulation_configure```
+1. ```docker run -v $FAME_OUTDIR:/fame_dir --env-file=myenv -it --rm fame:emulation_configure```
 
     and verify values are as expected.
 

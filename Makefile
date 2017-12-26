@@ -4,7 +4,7 @@ IMG:=fame:${BASE}
 CONT:=${BASE}
 MYENV:=myenv
 
-$(shell [ ! -d "${FAME_OUTDIR}" ] && echo "Missing FAME_OUTDIR=${FAME_OUTDIR}" >&2)
+$(shell [ ! -d "${FAME_DIR}" ] && echo "Missing FAME_DIR=${FAME_DIR}" >&2)
 $(shell [ ! -f "${FAME_FAM}" ] && echo "Missing FAME_FAM=${FAME_FAM}" >&2)
 LVQUID:=$(shell grep libvirt-qemu /etc/passwd | cut -d':' -f3)
 LVQGID:=$(shell grep libvirt-qemu /etc/group  | cut -d':' -f3)
@@ -33,7 +33,7 @@ image:
 container:
 	docker run --name=${CONT} -it --entrypoint bash \
 	-e LVQUID=${LVQUID} -e LVQGID=${LVQGID} \
-	-v ${FAME_OUTDIR}:/outdir --env-file=${MYENV} \
+	-v ${FAME_DIR}:/fame_dir --env-file=${MYENV} \
 	--cap-add=ALL --privileged \
 	--device=/dev/loop-control:/dev/loop-control:rwm \
 	--device=/dev/loop0:/dev/loop0:rwm \
