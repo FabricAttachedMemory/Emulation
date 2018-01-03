@@ -62,7 +62,7 @@ operating values.  They are listed here in alphabetical order:
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| FAME_OUT | All resulting artifacts are located here, including "env.sh" that lists the FAME_XXX values.  This is a good place to allocate $FAME_FAM. | <unset> |
+| FAME_DIR | All resulting artifacts are located here, including "env.sh" that lists the FAME_XXX values.  This is a good place to allocate $FAME_FAM. | <unset> |
 | FAME_FAM | The "backing store" for the Global NVM seen by the nodes; it's the file used by QEMU IVSHMEM. | REQUIRED! |
 | FAME_KERNEL | The kernel package pulled from the $FAME_L4FAME repo (during development multiple kernels existed). | linux-image-4.14.0-l4fame+ |
 | FAME_L4FAME | The auxiliary L4FAME repo.  The default global copy is maintained by HPE but there are ways to build your own. | http://downloads.linux.hpe.com/repo/l4fame/Debian |
