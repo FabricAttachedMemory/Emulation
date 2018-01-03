@@ -20,7 +20,7 @@ Then you can run the FAME VMs on your native host.
 
    $FAME_FAM must appear in $FAME_DIR when using this container technique.
 
-   If you don't need a proxy to clear a firewall (for apt-get), leave this variable unset.
+   If you don't need a proxy to clear a firewall (for apt-get), leave http_proxy unset.
    
 1. Create $FAME_FAM to be the necessary size.  For a 16 G file,
 
