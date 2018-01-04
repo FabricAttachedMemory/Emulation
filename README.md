@@ -62,12 +62,12 @@ operating values.  They are listed here in alphabetical order:
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
+| FAME_DIR | All resulting artifacts are located here, including "env.sh" that lists the FAME_XXX values.  This is a good place to allocate $FAME_FAM. | <unset> |
 | FAME_FAM | The "backing store" for the Global NVM seen by the nodes; it's the file used by QEMU IVSHMEM. | REQUIRED! |
 | FAME_KERNEL | The kernel package pulled from the $FAME_L4FAME repo (during development multiple kernels existed). | linux-image-4.14.0-l4fame+ |
-| FAME_L4FAME | The auxiliary L4FAME repo.  This global copy is maintained by HPE but there are ways to build your own. | http://downloads.linux.hpe.com/repo/l4fame/Debian |
+| FAME_L4FAME | The auxiliary L4FAME repo.  The default global copy is maintained by HPE but there are ways to build your own. | http://downloads.linux.hpe.com/repo/l4fame/Debian |
 | FAME_MIRROR | The primary Debian repo used by vmdebootstrap. | http://ftp.us.debian.org/debian |
-| FAME_OUTDIR | All resulting artifacts are located here, including "env.sh" that lists the FAME_XXX values.  This is a good place to allocate $FAME_FAM. | /tmp |
-| FAME_PROXY | Any proxy needed to reach $FAME_MIRROR. | $http_proxy |
+| FAME_PROXY | Any proxy needed to reach $FAME_MIRROR.  It can be different from $http_proxy if you have a weird setup. | $http_proxy |
 | FAME_VCPUS | The number of virtual CPUs for each VM | 2 |
 | FAME_VDRAM | Virtual DRAM allocated for each VM in KiB | 768432 |
 | FAME_VERBOSE |Normally the script is fairly quiet, only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $FAME_OUTDIR/fabric_emulation.log | unset |
@@ -77,12 +77,12 @@ the current variable values:
 
 ```
 $ ./emulation_configure.bash
-Environment:
-http_proxy=http://some.proxy.net:8080
+http_proxy=
+FAME_DIR=
+FAME_FAM=
 FAME_KERNEL=linux-image-4.14.0-l4fame+
 FAME_L4FAME=http://downloads.linux.hpe.com/repo/l4fame/Debian
 FAME_MIRROR=http://ftp.us.debian.org/debian
-FAME_OUTDIR=/tmp
 FAME_PROXY=
 FAME_VCPUS=2
 FAME_VDRAM=786432
@@ -96,9 +96,9 @@ Variables can be exported for use by the script:
 
 The file referenced by $FAME_FAM must exist and be over 1G.  It must also belong to the group "libvirt-qemu" and have permissions 66x.  Suggestions:
 
-    $ export FAME_OUTDIR=$HOME/FAME
-    $ mkdir -p $FAME_OUTDIR
-    $ export FAME_FAM=$FAME_OUTDIR/FAM
+    $ export FAME_DIR=$HOME/FAME
+    $ mkdir -p $FAME_DIR
+    $ export FAME_FAM=$FAME_DIR/FAM
     $ fallocate -l 16G $FAME_FAM
     $ chgrp libvirt-qemu $FAME_FAM
     $ chmod 664 $FAME_FAM
@@ -137,15 +137,15 @@ emulation_configure.bash performs the following actions:
    /etc/hosts, /etc/resolv.conf, root and user "l4tm").  The raw image is
    then converted to a qcow2 (copy-on-write) which shrinks its size down to
    800 megabytes.  That will grow with use.  The qcow2 files are created in
-   $FAME_OUTDIR.
+   $FAME_DIR.
 1. Emits libvirt XML node definition files and and a script to 
    load/start/stop/unload them from libvirt/virt-manager.  Those files are
-   all written to $FAME_OUTDIR.  The XML files contain stanzas necessary to
+   all written to $FAME_DIR.  The XML files contain stanzas necessary to
    create the IVSHMEM connectivity (see below).
 
 ## Artifacts
 
-The following files will be created in $FAME_OUTDIR after a successful run.  Note: FAME_OUTDIR was originally TMPDIR, but that variable is suppressed by glibc on setuid programs which breaks under certain uses of sudo.
+The following files will be created in $FAME_DIR after a successful run.  Note: FAME_DIR was originally TMPDIR, but that variable is suppressed by glibc on setuid programs which breaks under certain uses of sudo.
 
 | Artifact | Description |
 |----------|-------------|
@@ -168,7 +168,7 @@ starting the nodes the Librarian must be
 Once the librarian is running, you can declare the nodes to the libvirt
 subsystem:
 
-1. cd $FAME_OUTDIR
+1. cd $FAME_DIR
 1. ./node_virsh define
 1. ./node_virsh start
 
@@ -191,4 +191,6 @@ updates per the FAME_MIRROR, FAME_L4FAME, and FAME_PROXY settings above.
 
 ## Running FAME on non-Debian host systems
 
-[Coming soon to a Dockerfile near you!](Docker.md)
+[Read this document](Docker.md) to execute emulation_configure.bash in a Docker
+container.  The resulting VMs and other files will still be left in $FAME_DIR
+as expected, but now you can run on a distro like RedHat or SLES.
