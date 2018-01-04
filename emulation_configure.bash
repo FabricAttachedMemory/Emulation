@@ -460,28 +460,78 @@ function expose_proxy() {
 ###########################################################################
 # Add a package, most uses are fulfilled from the second FAME_L4FAME.
 # Remember APT::Get::AllowUnauthenticated was set earlier.
+# $1: Full name of package
+# $2: Revision (optional)
 
 function install_one() {
-    echo Installing $1
-    quiet $SUDO chroot $MNT apt-cache show $1	# "search" is fuzzy match
+    PKG=$1
+    [ $# -eq 2 ] && VER="=$2" || VER=
+    echo Installing $PKG$VER
+    quiet $SUDO chroot $MNT apt-cache show $PKG	# "search" is fuzzy match
     RET=$?
-    [ $RET -ne 0 ] && echo "No candidate matches $1" >&2 && return $RET
+    [ $RET -ne 0 ] && echo "No candidate matches $PKG" >&2 && return $RET
 
     # Here's a day I'll never get back :-)  DEBIAN_FRONTEND env var is the
     # easiest way to get this per-package (debconf-get/set would be needed).
     # "man bash" for -c usage, it's not what you think.  The outer double
-    # quotes send a single arg to quiet() while allowing evaluation of $1.
+    # quotes send a single arg to quiet() while allowing evaluation of $PKG.
     # The inner single quotes are preserved across the chroot to create a
     # single arg for "bash -c".
     quiet $SUDO chroot $MNT /bin/bash -c \
-	"'DEBIAN_FRONTEND=noninteractive; apt-get -y --force-yes install $1'"
+	"'DEBIAN_FRONTEND=noninteractive; apt-get -y --force-yes install $PKG$VER'"
     RET=$?
     [ $RET -ne 0 ] && echo "Install failed" >&2 && return $RET
 
-    quiet $SUDO chroot $MNT dpkg -l $1	# Paranoia
+    quiet $SUDO chroot $MNT dpkg -l $PKG	# Paranoia
     RET=$?
     [ $RET -ne 0 ] && echo "dpkg -l after install failed" >&2 && return $RET
     return 0
+}
+
+###########################################################################
+# add-apt-repository clutters /etc/apt/sources.list too much for my taste.
+# $1: file name under /etc/apt/sources.list.d
+# $2 - $n: active line to go into that file
+# Assumes image is already mounted at $MNT.  Yes, same file is cumulative.
+
+function new_apt_source() {
+    SOURCES="$MNT/etc/apt/sources.list.d/$1"
+    shift
+    cat << EOSOURCES | sudo tee -a $SOURCES
+# Added by emulation_configure.bash `date`
+
+$* 
+EOSOURCES
+}
+
+###########################################################################
+# Setup things so "apt-get install docker-ce" works.  Adapted from
+# https://docs.docker.com/engine/installation/linux/docker-ce/debian/#set-up-the-repository
+# Assumes image is already mounted at $MNT.
+
+# Matches Kubernetes version to come later.  See
+# https://download.docker.com/linux/debian/dists/stretch/pool/stable/amd64/
+DOCKER_VERSION=17.03.2~ce-0~debian-stretch
+
+function install_Docker() {
+    RELEASE=stretch
+    grep -q $RELEASE $MNT/etc/os-release || die "Docker was expecting $RELEASE"
+    quiet $SUDO chroot $MNT sh -c "'curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -'"
+    [ $? -ne 0 ] && die "Error adding Docker official GPG key"
+
+    # apt-transport-https is needed for the Docker repo, others are dependencies
+    for P in apt-transport-https ca-certificates curl gnupg2 software-properties-common
+    do
+    	install_one $P || die "Failed Docker requirement $P"
+    done
+
+    echo "Updating apt for Docker..."
+    new_apt_source docker-ce.list deb [arch=amd64] \
+    	https://download.docker.com/linux/debian $RELEASE stable
+    quiet $SUDO chroot $MNT apt-get update
+    [ $? -ne 0 ] && die "Cannot refresh Docker repo sources and preferences"
+
+    install_one docker-ce $DOCKER_VERSION || die "Could not install Docker"
 }
 
 ###########################################################################
@@ -493,7 +543,6 @@ function transmogrify_l4fame() {
     mount_image $TEMPLATEIMG || return 1
     sep "Extending template with L4FAME: updating sources..."
     APTCONF="$MNT/etc/apt/apt.conf.d/00FAME.conf"
-    SOURCES="$MNT/etc/apt/sources.list.d/l4fame.list"
 
     # Make allowances for container-based self-hosted repo
     echo "APT::Get::AllowUnauthenticated \"True\";" | quiet $SUDO tee $APTCONF
@@ -524,15 +573,16 @@ function transmogrify_l4fame() {
 	USED_L4FAME=$FAME_L4FAME
     fi
     # echo "deb $USED_L4FAME testing main" | quiet $SUDO tee $SOURCES
-    quiet $SUDO tee $SOURCES <<< "deb $USED_L4FAME testing main" 
+    new_apt_source l4fame.list deb \[trusted=yes\] $USED_L4FAME testing main
 
     echo "Contacting $FAME_L4FAME..."
     quiet wget -O /dev/null $FAME_L4FAME > /dev/null 2>&1
     [ $? -ne 0 ] && die "Cannot reach $FAME_L4FAME"
 
     echo "Updating apt from $FAME_L4FAME..."
-    quiet $SUDO chroot $MNT apt-get --allow-unauthenticated update
-    [ $? -ne 0 ] && die "Cannot refresh repo sources and preferences"
+    # quiet $SUDO chroot $MNT apt-get --allow-unauthenticated update
+    quiet $SUDO chroot $MNT apt-get update
+    [ $? -ne 0 ] && die "Cannot refresh L4FAME repo sources and preferences"
 
     install_one "$FAME_KERNEL"	# Always use quotes.
     [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
@@ -551,6 +601,8 @@ function transmogrify_l4fame() {
 	RET=$?
 	[ $RET -ne 0 ] &&  echo "$E failed" >&2 && break
     done
+
+    install_Docker
 
     mount_image
 
