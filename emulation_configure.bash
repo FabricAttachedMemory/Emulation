@@ -494,7 +494,7 @@ function install_one() {
 # $2 - $n: active line to go into that file
 # Assumes image is already mounted at $MNT.  Yes, same file is cumulative.
 
-function new_apt_source() {
+function apt_add_repository() {
     SOURCES="$MNT/etc/apt/sources.list.d/$1"
     shift
     cat << EOSOURCES | sudo tee -a $SOURCES
@@ -502,6 +502,20 @@ function new_apt_source() {
 
 $* 
 EOSOURCES
+    quiet $SUDO chroot $MNT apt-get update
+    [ $? -ne 0 ] && die "Cannot refresh `basename $SOURCES` repo sources and preferences"
+}
+
+function apt_key_add() {
+    URL=$1
+    shift
+    quiet $SUDO chroot $MNT sh -c "'curl -fsSL $URL | apt-key add -'"
+    [ $? -ne 0 ] && die "Error adding $* official GPG key"
+}
+
+function apt_mark_hold() {
+    quiet $SUDO chroot $MNT apt-mark hold "$1"
+    [ $? -ne 0 ] && echo "Cannot hold $1" >&2	# not fatal
 }
 
 ###########################################################################
@@ -509,29 +523,46 @@ EOSOURCES
 # https://docs.docker.com/engine/installation/linux/docker-ce/debian/#set-up-the-repository
 # Assumes image is already mounted at $MNT.
 
-# Matches Kubernetes version to come later.  See
+# These versions are known to work together.
 # https://download.docker.com/linux/debian/dists/stretch/pool/stable/amd64/
 DOCKER_VERSION=17.03.2~ce-0~debian-stretch
+KUBERNETES_VERSION="1.8.2"
+KUBEADM_VERSION="$KUBERNETES_VERSION-00"
+KUBELET_VERSION="$KUBERNETES_VERSION-00"
+KUBECTL_VERSION="$KUBERNETES_VERSION-00"
 
-function install_Docker() {
-    RELEASE=stretch
+function install_Docker_Kubernetes() {
+    sep "Installing Docker $DOCKER_VERSION and Kubernetes $KUBERNETES_VERSION"
     grep -q $RELEASE $MNT/etc/os-release || die "Docker was expecting $RELEASE"
-    quiet $SUDO chroot $MNT sh -c "'curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -'"
-    [ $? -ne 0 ] && die "Error adding Docker official GPG key"
 
-    # apt-transport-https is needed for the Docker repo, others are dependencies
+    # apt-transport-https is needed for the repos, curl/gpg for keys, plus dependencies
     for P in apt-transport-https ca-certificates curl gnupg2 software-properties-common
     do
     	install_one $P || die "Failed Docker requirement $P"
     done
 
+    RELEASE=stretch
+    apt_key_add https://download.docker.com/linux/debian/gpg Docker
+
     echo "Updating apt for Docker..."
-    new_apt_source docker-ce.list deb [arch=amd64] \
+    apt_add_repository docker-ce.list deb [arch=amd64] \
     	https://download.docker.com/linux/debian $RELEASE stable
-    quiet $SUDO chroot $MNT apt-get update
-    [ $? -ne 0 ] && die "Cannot refresh Docker repo sources and preferences"
 
     install_one docker-ce $DOCKER_VERSION || die "Could not install Docker"
+
+    quiet $SUDO chroot $MNT /usr/sbin/adduser l4tm docker
+
+    # And now k8s
+
+    apt_key_add https://packages.cloud.google.com/apt/doc/apt-key.gpg Kubernetes
+
+    # Use xenial repository as no kubeadm build for jessie or stretch
+    apt_add_repository kubernetes.list deb http://apt.kubernetes.io/ kubernetes-xenial main
+
+    for P in kubelet=$KUBELET_VERSION kubeadm=$KUBEADM_VERSION kubectl=$KUBECTL_VERSION
+    do
+    	install_one $P || die "Failed Kubernetes requirement $P"
+    done
 }
 
 ###########################################################################
@@ -572,23 +603,16 @@ function transmogrify_l4fame() {
     else
 	USED_L4FAME=$FAME_L4FAME
     fi
-    # echo "deb $USED_L4FAME testing main" | quiet $SUDO tee $SOURCES
-    new_apt_source l4fame.list deb \[trusted=yes\] $USED_L4FAME testing main
 
     echo "Contacting $FAME_L4FAME..."
     quiet wget -O /dev/null $FAME_L4FAME > /dev/null 2>&1
     [ $? -ne 0 ] && die "Cannot reach $FAME_L4FAME"
-
-    echo "Updating apt from $FAME_L4FAME..."
-    # quiet $SUDO chroot $MNT apt-get --allow-unauthenticated update
-    quiet $SUDO chroot $MNT apt-get update
-    [ $? -ne 0 ] && die "Cannot refresh L4FAME repo sources and preferences"
+    apt_add_repository l4fame.list deb \[trusted=yes\] $USED_L4FAME testing main
 
     install_one "$FAME_KERNEL"	# Always use quotes.
     [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
 
-    quiet $SUDO chroot $MNT apt-mark hold "$FAME_KERNEL"
-    [ $? -ne 0 ] && echo "Cannot hold L4FAME kernel version $FAME_KERNEL"
+    apt_mark_hold "$FAME_KERNEL"
 
     # Installing a kernel took info from /proc and /sys that set up
     # /etc/fstab, but it's from the host system.  Fix that, along with
@@ -602,7 +626,7 @@ function transmogrify_l4fame() {
 	[ $RET -ne 0 ] &&  echo "$E failed" >&2 && break
     done
 
-    install_Docker
+    install_Docker_Kubernetes
 
     mount_image
 
