@@ -495,15 +495,16 @@ function install_one() {
 # Assumes image is already mounted at $MNT.  Yes, same file is cumulative.
 
 function apt_add_repository() {
-    SOURCES="$MNT/etc/apt/sources.list.d/$1"
+    SOURCES="/etc/apt/sources.list.d/$1"
+    echo "Updating apt with $SOURCES..."
     shift
-    cat << EOSOURCES | sudo tee -a $SOURCES
+    cat << EOSOURCES | sudo tee -a $MNT$SOURCES
 # Added by emulation_configure.bash `date`
 
 $* 
 EOSOURCES
     quiet $SUDO chroot $MNT apt-get update
-    [ $? -ne 0 ] && die "Cannot refresh `basename $SOURCES` repo sources and preferences"
+    [ $? -ne 0 ] && die "Cannot refresh $SOURCES"
 }
 
 function apt_key_add() {
@@ -533,18 +534,18 @@ KUBECTL_VERSION="$KUBERNETES_VERSION-00"
 
 function install_Docker_Kubernetes() {
     sep "Installing Docker $DOCKER_VERSION and Kubernetes $KUBERNETES_VERSION"
+
+    RELEASE=stretch
     grep -q $RELEASE $MNT/etc/os-release || die "Docker was expecting $RELEASE"
 
     # apt-transport-https is needed for the repos, curl/gpg for keys, plus dependencies
     for P in apt-transport-https ca-certificates curl gnupg2 software-properties-common
     do
-    	install_one $P || die "Failed Docker requirement $P"
+    	install_one $P || die "Failed Docker/k8s requirement $P"
     done
 
-    RELEASE=stretch
     apt_key_add https://download.docker.com/linux/debian/gpg Docker
 
-    echo "Updating apt for Docker..."
     apt_add_repository docker-ce.list deb [arch=amd64] \
     	https://download.docker.com/linux/debian $RELEASE stable
 
@@ -552,17 +553,14 @@ function install_Docker_Kubernetes() {
 
     quiet $SUDO chroot $MNT /usr/sbin/adduser l4tm docker
 
-    # And now k8s
+    # And now k8s.  Use xenial repository as no kubeadm build for jessie or stretch.
 
     apt_key_add https://packages.cloud.google.com/apt/doc/apt-key.gpg Kubernetes
-
-    # Use xenial repository as no kubeadm build for jessie or stretch
     apt_add_repository kubernetes.list deb http://apt.kubernetes.io/ kubernetes-xenial main
 
-    for P in kubelet=$KUBELET_VERSION kubeadm=$KUBEADM_VERSION kubectl=$KUBECTL_VERSION
-    do
-    	install_one $P || die "Failed Kubernetes requirement $P"
-    done
+    install_one kubelet $KUBELET_VERSION || die "kubelet install failed"
+    install_one kubeadm $KUBEADM_VERSION || die "kubeadm install failed"
+    install_one kubectl $KUBECTL_VERSION || die "kubectl install failed"
 }
 
 ###########################################################################
@@ -621,9 +619,7 @@ function transmogrify_l4fame() {
     common_config_files
 
     for E in l4fame-node; do
-    	install_one $E
-	RET=$?
-	[ $RET -ne 0 ] &&  echo "$E failed" >&2 && break
+    	install_one $E || echo "$E failed" >&2
     done
 
     install_Docker_Kubernetes
