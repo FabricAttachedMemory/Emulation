@@ -30,6 +30,8 @@ export FAME_DIR
 
 export FAME_FAM=${FAME_FAM:-}
 
+export FAME_USER=${FAME_USER:-l4mdc}
+
 export FAME_VCPUS=${FAME_VCPUS:-2}		# No idiot checks yet
 
 export FAME_VDRAM=${FAME_VDRAM:-786432}
@@ -62,7 +64,8 @@ typeset -r TORMSIP=$OCTETS123.254
 typeset -r DOCKER_DIR=/fame_dir			# See Makefile and Docker.md
 
 # Can be reset under Docker so no typeset -r
-LOG=$FAME_DIR/$PROJECT.log
+junk=`basename $0`
+LOG=$FAME_DIR/${junk%%.*}.log
 TEMPLATEIMG=$FAME_DIR/${HOSTUSERBASE}_template.img
 
 export DEBIAN_FRONTEND=noninteractive	# preserved by chroot
@@ -90,8 +93,8 @@ function die() {
 
 function quiet() {
     if [ "$FAME_VERBOSE" ]; then
-    	echo $*
-    	eval $*
+    	echo $* | tee -a $LOG
+    	eval $* 2>&1 | tee -a $LOG
     else
     	eval $* >/dev/null 2>&1
     fi
@@ -419,7 +422,7 @@ function mount_image() {
 function validate_template_image() {
     [ -f $TEMPLATEIMG ] || return 1		# File not found
     mount_image $TEMPLATEIMG || return 255	# aka return -1: corrupt
-    test -d $MNT/home/l4tm			# see vmd.xxx files
+    test -d $MNT/home/$FAME_USER		# see vmdebootstrap --user
     RET=$?					# Incomplete
     mount_image
     return $RET
@@ -478,7 +481,7 @@ function install_one() {
     # The inner single quotes are preserved across the chroot to create a
     # single arg for "bash -c".
     quiet $SUDO chroot $MNT /bin/bash -c \
-	"'DEBIAN_FRONTEND=noninteractive; apt-get -y --force-yes install $PKG$VER'"
+	"'DEBIAN_FRONTEND=noninteractive; apt-get --yes install $PKG$VER'"
     RET=$?
     [ $RET -ne 0 ] && echo "Install failed" >&2 && return $RET
 
@@ -510,7 +513,7 @@ EOSOURCES
 function apt_key_add() {
     URL=$1
     shift
-    quiet $SUDO chroot $MNT sh -c "'curl -fsSL $URL | apt-key add -'"
+    quiet $SUDO chroot $MNT sh -c "'http_proxy=$http_proxy curl -fsSL $URL | apt-key add -'"
     [ $? -ne 0 ] && die "Error adding $* official GPG key"
 }
 
@@ -551,9 +554,9 @@ function install_Docker_Kubernetes() {
 
     install_one docker-ce $DOCKER_VERSION || die "Could not install Docker"
 
-    quiet $SUDO chroot $MNT /usr/sbin/adduser l4tm docker
+    quiet $SUDO chroot $MNT /usr/sbin/adduser $FAME_USER docker
 
-    # And now k8s.  Use xenial repository as no kubeadm build for jessie or stretch.
+    # And now k8s.  Use xenial repo as no kubeadm build for jessie or stretch.
 
     apt_key_add https://packages.cloud.google.com/apt/doc/apt-key.gpg Kubernetes
     apt_add_repository kubernetes.list deb http://apt.kubernetes.io/ kubernetes-xenial main
@@ -694,10 +697,11 @@ function manifest_template_image() {
     # interferes with subsequent runs, but doesn't complain properly.
     # Later versions of vmdebootstrap don't take both --image and --tarball.
 
-    $VMD --log=$LOG --image=$TEMPLATEIMG \
-    	--mirror=$FAME_MIRROR --owner=$SUDO_USER
+    VMDLOG=$LOG.vmd
+    $VMD --log=$VMDLOG --image=$TEMPLATEIMG \
+    	--mirror=$FAME_MIRROR --owner=$SUDO_USER --user="${FAME_USER}/iforgot"
     RET=$?
-    quiet $SUDO chown $SUDO_USER "$FAME_DIR/${HOSTUSERBASE}.*" 	# --owner bug
+    quiet $SUDO chown $SUDO_USER "$VMDLOG" 	# --owner bug
     if [ $RET -ne 0 -o ! -f $TEMPLATEIMG ]; then
 	BAD=`mount | grep '/dev/loop[[:digit:]]+p[[:digit:]]+'`
 	[ $BAD ] && echo "mount of $BAD may be a problem" | tee -a $LOG
@@ -722,19 +726,15 @@ function common_config_files() {
 
     # One-liners
 
-    # $SUDO cp hello_fabric.c $MNT/home/l4tm
-
     # Yes, the word "NEWHOST", which will be sedited later
     echo NEWHOST | quiet $SUDO tee $MNT/etc/hostname
 
     echo "http_proxy=$FAME_PROXY" | quiet $SUDO tee -a $MNT/etc/environment
 
     #------------------------------------------------------------------
-    SUDOER=$MNT/etc/sudoers.d/l4tm_phraseless
+    SUDOER=$MNT/etc/sudoers.d/FAME_phraseless
 
-    echo $SUDOER
-
-    echo "l4tm	ALL=(ALL:ALL) NOPASSWD: ALL" | quiet $SUDO tee $SUDOER
+    echo "$FAME_USER	ALL=(ALL:ALL) NOPASSWD: ALL" | quiet $SUDO tee $SUDOER
 
     #------------------------------------------------------------------
     ETCHOSTS=$MNT/etc/hosts
@@ -805,11 +805,11 @@ function clone_VMs()
 		quiet $SUDO sed -i -e "s/NEWHOST/$NEWHOST/" $TARGET
 	done
 
-	DOTSSH=$MNT/home/l4tm/.ssh
+	DOTSSH=$MNT/home/$FAME_USER/.ssh
 	quiet $SUDO mkdir -m 700 $DOTSSH
 	quiet $SUDO cp templates/id_rsa.nophrase     $DOTSSH
 	quiet $SUDO cp templates/id_rsa.nophrase.pub $DOTSSH/authorized_keys
-	# The "l4tm" user in the chroot might be different from the host.
+	# The "$FAME_USER" user in the chroot might be different from the host.
 
 	# FIXME but this is a reasonable assumption on a fresh vmdebootstrap.
 	quiet $SUDO chown -R 1000:1000 $DOTSSH
@@ -819,7 +819,7 @@ ConnectTimeout 5
 StrictHostKeyChecking no
 
 Host node*
-	User l4tm
+	User $FAME_USER
 	IdentityFile ~/.ssh/id_rsa.nophrase
 EOSSHCONFIG
 

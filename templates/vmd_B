@@ -48,7 +48,7 @@ lock-root-password = False
 
 customize = 
 hostname = nodeXX
-user = l4tm/iforgot
+user = try/this
 serial-console = False
 serial-console-command = /sbin/getty -L ttyS0 115200 vt100
 

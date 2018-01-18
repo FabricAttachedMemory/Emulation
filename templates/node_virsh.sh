@@ -110,7 +110,7 @@ stop|shutdown)	# Get id_rsa.nophrase as your identity file
 	for NODE in $NODESDOM; do
 		IP="192.168.42.$N"
 		echo -n "$NODE ($IP): "
-		ssh l4tm@$IP sudo shutdown -h 0
+		ssh l4mdc@$IP sudo shutdown -h 0
 		let N+=1
 	done
 	exit 0

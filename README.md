@@ -134,7 +134,7 @@ emulation_configure.bash performs the following actions:
    raw disk image yielding about eight gigabytes of file system space for
    a VM, more than enough for a non-graphical Linux development system.
 1. Copy the template image for each VM and customize it (hostname,
-   /etc/hosts, /etc/resolv.conf, root and user "l4tm").  The raw image is
+   /etc/hosts, /etc/resolv.conf, root and user "l4mdc").  The raw image is
    then converted to a qcow2 (copy-on-write) which shrinks its size down to
    800 megabytes.  That will grow with use.  The qcow2 files are created in
    $FAME_DIR.
@@ -152,7 +152,7 @@ The following files will be created in $FAME_DIR after a successful run.  Note: 
 | env.sh | A shell script snippet containing the FAME_XXX values from the last run of emulation_configure.bash. |
 | nodeXX.qcow2 | The disk image file for VM "node" XX |
 | nodeXX.xml | The "domain" defintion file for "node" XX, loaded into virt-manager via "virsh define nodeXX.xml" |
-| node_emulation.log | Trace file of all steps by emulation_configure.bash |
+| emulation_configure.log | Trace file of all steps by emulation_configure.bash |
 | node_template.img |	Pristine (un-customized) file-system golden image of vmdebootstrap. |
 | node_virsh.sh | Shell script to to "define", "start", "stop", "destroy", and "undefine" all VM "nodes" |
 
@@ -176,8 +176,8 @@ After "define", libvirt knows about the nodes so you could also run
 individual "virsh" commands to start nodes, or run virt-manager.
 
 The root password for all nodes is "iforgot".  A normal user also
-exists, "l4tm", also with password "iforgot", and is enabled as a full
-"sudo" account.  The l4tm user is configured with a phraseless ssh
+exists, "l4mdc", also with password "iforgot", and is enabled as a full
+"sudo" account.  The l4mdc user is configured with a phraseless ssh
 keypair expressed in id_rsa.nophrase (the private key).
 
 Networking should be active on eth0.  /etc/hosts is set up for "nodes" node01
