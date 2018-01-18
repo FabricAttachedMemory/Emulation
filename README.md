@@ -35,14 +35,14 @@ of fabric-attached memory emulation.
 ## Setup and Execution
 
 The Machine project at HPE created a Debian derivative known as L4TM: Linux
-for The Machine.  Thus the emulation configurator script of this project,
-*emulation_configure.bash*, was created for Debian 8.x (Jessie).
+for The Machine.  The emulation configurator script of this project,
+*emulation_configure.bash*, was originally created for Debian 8.x (Jessie). 
+It has been upgraded to work with Stretch (Debian 9.x) and Ubuntu 16/17.
 
-It has been upgraded to work with Stretch (Debian 9.x) and Ubuntu 16/17.  
-The script centers around the image produced by vmdebootstrap, with other
+The script centers around the image produced by vmdebootstrap; other
 packages are required as well.  These existence of these packages is checked
 by the script during its early phase.  You may get output requesting
-the installation of additional packages to resolve, then you can
+the installation of additional packages.  Resolve those requests and then you can
 re-run the script.
 
 If your host system is NOT Stretch or Ubuntu 16/17 you may be able to
@@ -57,14 +57,14 @@ build from two repos:
 2. An "L4FAME" (Linux for FAME) repo that has about a dozen packages
    needed by each node.
 
-The environment variables specify the repo locations as well as QEMU
+The environment variables specify the repo locations as well as other QEMU
 operating values.  They are listed here in alphabetical order:
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | FAME_DIR | All resulting artifacts are located here, including "env.sh" that lists the FAME_XXX values.  This is a good place to allocate $FAME_FAM. | <unset> |
 | FAME_FAM | The "backing store" for the Global NVM seen by the nodes; it's the file used by QEMU IVSHMEM. | REQUIRED! |
-| FAME_KERNEL | The kernel package pulled from the $FAME_L4FAME repo (during development multiple kernels existed). | linux-image-4.14.0-l4fame+ |
+| FAME_KERNEL | The kernel package pulled from the $FAME_L4FAME repo (multiple kernels may exist). | linux-image-4.14.0-l4fame+ |
 | FAME_L4FAME | The auxiliary L4FAME repo.  The default global copy is maintained by HPE but there are ways to build your own. | http://downloads.linux.hpe.com/repo/l4fame/Debian |
 | FAME_MIRROR | The primary Debian repo used by vmdebootstrap. | http://ftp.us.debian.org/debian |
 | FAME_PROXY | Any proxy needed to reach $FAME_MIRROR.  It can be different from $http_proxy if you have a weird setup. | $http_proxy |
@@ -72,8 +72,7 @@ operating values.  They are listed here in alphabetical order:
 | FAME_VDRAM | Virtual DRAM allocated for each VM in KiB | 768432 |
 | FAME_VERBOSE |Normally the script is fairly quiet, only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $FAME_OUTDIR/fabric_emulation.log | unset |
 
-If you run the script with no options (-h or a number of VMs) it will print
-the current variable values:
+If you run the script with no options it will print the current variable values:
 
 ```
 $ ./emulation_configure.bash
@@ -94,7 +93,7 @@ Variables can be exported for use by the script:
     $ export FAME_MIRROR=http://a.b.com/debian
     $ export FAME_VERBOSE=yes
 
-The file referenced by $FAME_FAM must exist and be over 1G.  It must also belong to the group "libvirt-qemu" and have permissions 66x.  Suggestions:
+The file referenced by $FAME_FAM must exist and be at least 1G.  It must also belong to the group "libvirt-qemu" and have permissions 66x.  Suggestions:
 
     $ export FAME_DIR=$HOME/FAME
     $ mkdir -p $FAME_DIR
@@ -161,7 +160,8 @@ The following files will be created in $FAME_DIR after a successful run.  Note: 
 The nodes (VMs) participate in a distributed file system.  That file system
 is coordinated by a single master daemon known as the Librarian.  Before
 starting the nodes the Librarian must be 
-**[configured as discussed in this document.](Librarian.md)**
+**[configured as discussed in this document.](Librarian.md)**  Values used
+in this configuration step have a direct impact on the size of $FAME_FAM.
 
 ## Starting the nodes
 
