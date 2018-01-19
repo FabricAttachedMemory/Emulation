@@ -32,14 +32,18 @@ distribution = stretch
 # dbus: shutdown is broken without it
 # init: many things are broken with it, specifically auto-networking.
 
-package = aptitude,apt-utils,attr,build-essential,ca-certificates,curl,dbus,gnupg,ifupdown,init,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,nfs-common,pciutils,psmisc,psutils,python3-psutil,ssh,vim,wget
+package = aptitude,apt-utils,attr,build-essential,ca-certificates,curl,dbus,gnupg,ifupdown,init,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,nfs-common,pciutils,psmisc,psutils,python3-psutil,ssh,vim,wget,initramfs-tools,kmod,linux-base
 custom-package =
 
-# 2018-12: L4FAME exports kernel 4.14y which is later than stretch @ 4.3
-no-kernel = False
+# 2017-12: L4FAME exports kernel 4.14y which is later than stretch @ 4.3.
+# However, our kernel package from "make deb-pkg" is currently missing 
+# Depends: kmod, linux-base (>= 4.3~), initramfs-tools (>= 0.120+deb8u2) | linux-initramfs-tool
+# so the resulting image is unbootable.  Add these packages to "package" above
+# until our 4.14 in l4fame is fixed.
+no-kernel = True
 sudo = True
 
-# Do not try to second-guess the defaults based on that PDF.  Somehow
+# Do not try to second-guess the defaults based on the above PDF.  Somehow
 # /etc/systemd/network/99-dhcp.network magically appears, hopefully from udev.
 # systemd-networkd = Please do the right thing
 # enable-dhcp = Please do the right thing

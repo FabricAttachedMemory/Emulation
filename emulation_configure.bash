@@ -443,7 +443,7 @@ function expose_proxy() {
 	fi
 	[ "${FAME_PROXY:0:7}" != "http://" ] && FAME_PROXY="http://$FAME_PROXY"
 	http_proxy=$FAME_PROXY
-	https_proxy=`echo $FAME_PROXY | sed -e 's/http:/https:/'`
+	https_proxy=${https_proxy:-${http_proxy}}
 	export http_proxy https_proxy FAME_PROXY
 	return 0
     fi
@@ -513,7 +513,7 @@ EOSOURCES
 function apt_key_add() {
     URL=$1
     shift
-    quiet $SUDO chroot $MNT sh -c "'http_proxy=$http_proxy curl -fsSL $URL | apt-key add -'"
+    quiet $SUDO chroot $MNT sh -c "'http_proxy=$http_proxy https_proxy=$https_proxy curl -fsSL $URL | apt-key add -'"
     [ $? -ne 0 ] && die "Error adding $* official GPG key"
 }
 
