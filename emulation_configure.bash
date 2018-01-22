@@ -496,11 +496,18 @@ function install_one() {
 # $1: file name under /etc/apt/sources.list.d
 # $2 - $n: active line to go into that file
 # Assumes image is already mounted at $MNT.  Yes, same file is cumulative.
+# Any failure here is fatal as it's assumed the new repo needs to be used
+# during the lifetime of this script.
 
 function apt_add_repository() {
     SOURCES="/etc/apt/sources.list.d/$1"
     echo "Updating apt with $SOURCES..."
     shift
+    URL=`tr ' ' '\n' <<< "$*" | grep '^http'`
+    echo "Contacting $URL..."
+    wget -O /dev/null $URL > /dev/null 2>&1
+    [ $? -ne 0 ] && die "Cannot reach $URL"
+
     cat << EOSOURCES | sudo tee -a $MNT$SOURCES
 # Added by emulation_configure.bash `date`
 
@@ -605,15 +612,18 @@ function transmogrify_l4fame() {
 	USED_L4FAME=$FAME_L4FAME
     fi
 
-    echo "Contacting $FAME_L4FAME..."
-    quiet wget -O /dev/null $FAME_L4FAME > /dev/null 2>&1
-    [ $? -ne 0 ] && die "Cannot reach $FAME_L4FAME"
     apt_add_repository l4fame.list deb \[trusted=yes\] $USED_L4FAME testing main
 
     install_one "$FAME_KERNEL"	# Always use quotes.
     [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
-
     apt_mark_hold "$FAME_KERNEL"
+
+    # Auxiliary packages for building things like autofs (dkms) for Docker
+    KV=${FAME_KERNEL##linux-image-}
+    if [ "$KV" ]; then
+    	install_one "linux-headers-$KV"
+    	install_one "linux-libc-dev_$KV"	# Yes, underscore
+    fi
 
     # Installing a kernel took info from /proc and /sys that set up
     # /etc/fstab, but it's from the host system.  Fix that, along with
