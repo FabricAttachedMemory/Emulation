@@ -867,11 +867,23 @@ function emit_libvirt_XML() {
 	# Referenced inside nodeXX.xml
 	QCOWXX=${ONHOST[FAME_DIR]}/$NODEXX.qcow2
 
+	# Characterize this host for some final virsh tweaks.
 	grep -q 'model name.*AMD' /proc/cpuinfo
 	[ $? -eq 0 ] && MODEL=amd || MODEL=intel
 	SRCXML=templates/node.$MODEL.xml
 	cp -f $SRCXML $NODEXML
 
+	grep -q '^flags.* vmx .*' /proc/cpuinfo	# Virtual-machine acceleration
+	if [ $? -eq 0 ]; then
+		DOMTYPEXX=kvm
+		CPUMODEXX=host-passthrough
+	else
+		DOMTYPEXX=qemu		# VMware workstation on Windows
+		CPUMODEXX=host-model
+	fi
+
+	sed -i -e "s!DOMTYPEXX!$DOMTYPEXX!" $NODEXML
+	sed -i -e "s!CPUMODEXX!$CPUMODEXX!" $NODEXML
 	sed -i -e "s!NODEXX!$NODEXX!" $NODEXML
 	sed -i -e "s!QCOWXX!$QCOWXX!" $NODEXML
 	sed -i -e "s!MACADDRXX!$MACADDRXX!" $NODEXML

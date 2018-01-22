@@ -1,4 +1,4 @@
-<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+<domain type='DOMTYPEXX' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
   <name>NODEXX</name>
   <resource>
     <partition>/machine</partition>
@@ -8,7 +8,7 @@
     <boot dev='hd'/>
   </os>
 
-  <cpu mode='host-passthrough'>
+  <cpu mode='CPUMODEXX'>
   </cpu>
   <vcpu placement='static'>FAME_VCPUS</vcpu>
 

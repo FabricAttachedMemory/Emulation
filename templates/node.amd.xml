@@ -1,4 +1,4 @@
-<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+<domain type='DOMTYPEXX' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
   <name>NODEXX</name>
   <memory unit='KiB'>FAME_VDRAM</memory>
   <currentMemory unit='KiB'>FAME_VDRAM</currentMemory>
