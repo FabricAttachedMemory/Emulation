@@ -32,6 +32,8 @@ export FAME_FAM=${FAME_FAM:-}
 
 export FAME_USER=${FAME_USER:-l4mdc}
 
+export FAME_VFS_GBYTES=${FAME_VFS_GBYTES:-6}	# Max size of a node FS
+
 export FAME_VCPUS=${FAME_VCPUS:-2}		# No idiot checks yet
 
 export FAME_VDRAM=${FAME_VDRAM:-786432}
@@ -81,6 +83,11 @@ function sep() {
     return 0
 }
 
+function warn() {
+    echo -e "\nWARNING: $*\n" >&2
+    echo -e "\nWARNING: $*\n" >> $LOG
+}
+
 # Early calls (before SUDO is set up) may not make it into $LOG
 function die() {
     mount_image		# release anything that may be mounted
@@ -107,6 +114,16 @@ function yesno() {
 	[ "$RSP" = yes ] && return 0
 	[ "$RSP" = no ] && return 1
     done
+}
+
+function Gfree_or_die() {
+	# $1 is the number of GB needed, $2-n is a description
+	NEEDED=$1
+	shift
+	# df -BG is never zero, ie, it will round 5M -> 1G
+	GF=`df -BG $FAME_DIR | awk '/^\// {print $4}'`
+	let GF=${GF:0:-1}-1		# chomp the trailing G and fudge it down
+	[ $GF -lt $NEEDED ] && die "$* needs $NEEDED GB ( > $GF GB free)"
 }
 
 function inDocker() {
@@ -272,7 +289,7 @@ function verify_environment() {
     FAME_SIZE=${TMP}G	# NOT exported
     quiet echo "$FAME_FAM = $FAME_SIZE"
     [ $TMP -lt 1 ] && die "$FAME_FAM size $T is less than 1G"
-    [ $TMP -gt 512 ] && echo "$FAME_FAM size $TMP is greater than 512G"
+    [ $TMP -gt 512 ] && warn "$FAME_FAM size $TMP is greater than 512G"
 
     # This needs to become smarter, looking for stale kpartx devices
     LOOPS=`$SUDO losetup -al | grep devicemapper | grep -v docker | wc -l`
@@ -289,12 +306,6 @@ function verify_environment() {
     		die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
     	verify_QBH
     fi
-
-    # Space for 2 raw image files, the tarball, all qcows, and slop
-    let GNEEDED=16+1+$NODES+1
-    let KNEEDED=1000000*$GNEEDED
-    TMPFREE=`df "$FAME_DIR" | awk '/^\// {print $4}'`
-    [ $TMPFREE -lt $KNEEDED ] && die "$FAME_DIR has less than $GNEEDED G free"
 
     echo_environment export > $FAME_DIR/env.sh	# For next time
 
@@ -673,6 +684,8 @@ function manifest_template_image() {
     if [ $RET -eq 0 ]; then
     	yesno "Re-use existing $TEMPLATEIMG"
 	[ $? -eq 0 ] && echo "Keep existing $TEMPLATEIMG" && return 0
+    else
+	Gfree_or_die $FAME_VFS_GBYTES "New template image"
     fi
     echo Creating new $TEMPLATEIMG from $FAME_MIRROR
 
@@ -708,7 +721,7 @@ function manifest_template_image() {
     # Later versions of vmdebootstrap don't take both --image and --tarball.
 
     VMDLOG=$LOG.vmd
-    $VMD --log=$VMDLOG --image=$TEMPLATEIMG \
+    $VMD --log=$VMDLOG --image=$TEMPLATEIMG --size=${FAME_VFS_GBYTES}G \
     	--mirror=$FAME_MIRROR --owner=$SUDO_USER --user="${FAME_USER}/iforgot"
     RET=$?
     quiet $SUDO chown $SUDO_USER "$VMDLOG" 	# --owner bug
@@ -801,8 +814,13 @@ function clone_VMs()
 	if [ -f $QCOW2 ]; then
 	    yesno "Re-use $QCOW2"
 	    [ $? -eq 0 ] && echo "Keep existing $QCOW2" && continue
+	    $SUDO rm -f $QCOW2
+	else
+	    # For a short time there will be two new files.  The
+	    # average size of a new QCOW2 image is about 2G.
+	    let TMP=$FAME_VFS_GBYTES+2
+	    Gfree_or_die $TMP "Temp raw image plus new qcow2"
 	fi
-	$SUDO rm -f $QCOW2
 
 	echo "Customize $NEWHOST..."
     	NEWIMG="$FAME_DIR/$NEWHOST.img"
