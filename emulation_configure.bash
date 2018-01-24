@@ -123,7 +123,7 @@ function quiet() {
 # It's like a decorator for quiet().
 
 function debug() {
-    declare -g FAME_DEBUG
+    declare -g FAME_DEBUG=
     SAVED_VERBOSE=$FAME_VERBOSE
     FAME_VERBOSE=$FAME_DEBUG
     quiet $*
