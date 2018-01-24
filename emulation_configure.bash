@@ -83,6 +83,11 @@ function sep() {
     return 0
 }
 
+function log() {
+	[ "$FAME_VERBOSE" ] && echo -e "$*"
+	echo -e "$*" | tee -a "$LOG"
+}
+
 function warn() {
     echo -e "\nWARNING: $*\n" >&2
     echo -e "\nWARNING: $*\n" >> $LOG
@@ -91,7 +96,7 @@ function warn() {
 # Early calls (before SUDO is set up) may not make it into $LOG
 function die() {
     mount_image		# release anything that may be mounted
-    echo -e "Error: $*" >&2
+    echo -e "\nERROR: $*\n" >&2
     echo -e "\n$0 failed:\n$*\n" >> $LOG
     [ "$FAME_VERBOSE" ] && env | sort >> $LOG
     echo -e "\n$LOG may have more details" >&2
@@ -99,13 +104,16 @@ function die() {
 }
 
 function quiet() {
+    log "$*"
     if [ "$FAME_VERBOSE" ]; then
-    	echo $* | tee -a $LOG
     	eval $* 2>&1 | tee -a $LOG
+	RET=${PIPESTATUS[-1]}	# cuz tee always works
     else
     	eval $* >/dev/null 2>&1
+	RET=$?
     fi
-    return $?
+    [ $RET -ne 0 ] && warn "$* failed"
+    return $RET
 }
 
 function yesno() {
@@ -113,6 +121,7 @@ function yesno() {
     	read -p "$* (yes/no) ? " RSP
 	[ "$RSP" = yes ] && return 0
 	[ "$RSP" = no ] && return 1
+	warn "'$RSP' is not yes or no!"
     done
 }
 
@@ -123,6 +132,7 @@ function Gfree_or_die() {
 	# df -BG is never zero, ie, it will round 5M -> 1G
 	GF=`df -BG $FAME_DIR | awk '/^\// {print $4}'`
 	let GF=${GF:0:-1}-1		# chomp the trailing G and fudge it down
+	log "$* needs ${NEEDED}G of disk space; ${GF}G is available"
 	[ $GF -lt $NEEDED ] && die "$* needs $NEEDED GB ( > $GF GB free)"
 }
 
@@ -164,7 +174,7 @@ EOMSG
     quiet $SUDO mkdir -m 755 -p `dirname $ACL`
     PATTERN="allow $NETWORK"
     quiet $SUDO grep -q "'^$PATTERN\$'" $ACL
-    [ $? -ne 0 ] && echo $PATTERN | quiet $SUDO tee -a $ACL
+    [ $? -ne 0 ] && log $PATTERN | quiet $SUDO tee -a $ACL
 
     # "Failed to parse default acl file" if these are wrong.
     quiet $SUDO chown root:libvirt-qemu $ACL
@@ -240,7 +250,7 @@ function verify_environment() {
 	quiet mv -f $LOG $LOG.previous # vmdebootstrap will rewrite it
 	[ $? -eq 0 ] || die "Cannot mv $LOG, please remove it"
     fi
-    echo -e "`date`\n" > $LOG
+    log "`date`\n"
     chmod 666 $LOG
     [ $? -eq 0 ] || die "Cannot start $LOG"
 
@@ -287,7 +297,7 @@ function verify_environment() {
     # from the guest point of view.
     let TMP=$T/1024/1024/1024
     FAME_SIZE=${TMP}G	# NOT exported
-    quiet echo "$FAME_FAM = $FAME_SIZE"
+    log "$FAME_FAM = $FAME_SIZE"
     [ $TMP -lt 1 ] && die "$FAME_FAM size $T is less than 1G"
     [ $TMP -gt 512 ] && warn "$FAME_FAM size $TMP is greater than 512G"
 
@@ -410,18 +420,18 @@ function mount_image() {
 	return 1	# let caller make decision on forward progress
     fi
 
-    # bind mounts to make /etc/grub.d/XXX happy when they calls grub-probe
+    # bind mounts to make /etc/grub.d/XXX happy when they call grub-probe
     OKREV=
     for BIND in $BINDFWD; do
 	quiet $SUDO mkdir -p $MNT$BIND
 	quiet $SUDO mount --bind $BIND $MNT$BIND
 	if [ $? -ne 0 ]; then
-	    echo "Bind mount of $BIND failed" >&2
+	    warn "Bind mount of $BIND failed"
 	    [ "$OKREV" ] && for O in "$OKREV"; do quiet $SUDO umount $MNT$O; done
 	    quiet $SUDO umount $MNT
 	    return 1
 	fi
-	quiet echo Bound $BIND
+	log Bound $BIND
 	OKREV="$BIND $OKREV"	# reverse order is important during failures
     done
     return 0
@@ -467,7 +477,7 @@ function expose_proxy() {
 	    return 0
 	fi
     done
-    echo "No proxy setting can be ascertained"
+    log "No proxy setting can be ascertained"	# Not necessarily bad
     return 0
 }
 
@@ -480,10 +490,9 @@ function expose_proxy() {
 function install_one() {
     PKG=$1
     [ $# -eq 2 ] && VER="=$2" || VER=
-    echo Installing $PKG$VER
-    quiet $SUDO chroot $MNT apt-cache show $PKG	# "search" is fuzzy match
-    RET=$?
-    [ $RET -ne 0 ] && echo "No candidate matches $PKG" >&2 && return $RET
+    log Installing $PKG$VER
+    quiet $SUDO chroot $MNT apt-cache show $PKG$VER	# "search" is fuzzy
+    [ $? -ne 0 ] && warn "No candidate matches $PKG" && return 1
 
     # Here's a day I'll never get back :-)  DEBIAN_FRONTEND env var is the
     # easiest way to get this per-package (debconf-get/set would be needed).
@@ -493,12 +502,10 @@ function install_one() {
     # single arg for "bash -c".
     quiet $SUDO chroot $MNT /bin/bash -c \
 	"'DEBIAN_FRONTEND=noninteractive; apt-get --yes install $PKG$VER'"
-    RET=$?
-    [ $RET -ne 0 ] && echo "Install failed" >&2 && return $RET
+    [ $? -ne 0 ] && warn "Install failed" && return 1
 
     quiet $SUDO chroot $MNT dpkg -l $PKG	# Paranoia
-    RET=$?
-    [ $RET -ne 0 ] && echo "dpkg -l after install failed" >&2 && return $RET
+    [ $? -ne 0 ] && warn "dpkg -l after install failed" && return 1
     return 0
 }
 
@@ -512,10 +519,10 @@ function install_one() {
 
 function apt_add_repository() {
     SOURCES="/etc/apt/sources.list.d/$1"
-    echo "Updating apt with $SOURCES..."
+    log "Updating apt with $SOURCES..."
     shift
     URL=`tr ' ' '\n' <<< "$*" | grep '^http'`
-    echo "Contacting $URL..."
+    log "Contacting $URL..."
     wget -O /dev/null $URL > /dev/null 2>&1
     [ $? -ne 0 ] && die "Cannot reach $URL"
 
@@ -526,6 +533,7 @@ $*
 EOSOURCES
     quiet $SUDO chroot $MNT apt-get update
     [ $? -ne 0 ] && die "Cannot refresh $SOURCES"
+    return 0
 }
 
 function apt_key_add() {
@@ -533,11 +541,13 @@ function apt_key_add() {
     shift
     quiet $SUDO chroot $MNT sh -c "'http_proxy=$http_proxy https_proxy=$https_proxy curl -fsSL $URL | apt-key add -'"
     [ $? -ne 0 ] && die "Error adding $* official GPG key"
+    return 0
 }
 
 function apt_mark_hold() {
     quiet $SUDO chroot $MNT apt-mark hold "$1"
-    [ $? -ne 0 ] && echo "Cannot hold $1" >&2	# not fatal
+    [ $? -ne 0 ] && warn "Cannot hold $1" && return 1	# not fatal
+    return 0
 }
 
 ###########################################################################
@@ -570,7 +580,8 @@ function install_Docker_Kubernetes() {
     apt_add_repository docker-ce.list deb [arch=amd64] \
     	https://download.docker.com/linux/debian $RELEASE stable
 
-    install_one docker-ce $DOCKER_VERSION || die "Could not install Docker"
+    install_one docker-ce $DOCKER_VERSION
+    [ $? -ne 0 ] && warn "Could not install Docker; skipping Kubernetes" && return 1
 
     quiet $SUDO chroot $MNT /usr/sbin/adduser $FAME_USER docker
 
@@ -578,10 +589,11 @@ function install_Docker_Kubernetes() {
 
     apt_key_add https://packages.cloud.google.com/apt/doc/apt-key.gpg Kubernetes
     apt_add_repository kubernetes.list deb http://apt.kubernetes.io/ kubernetes-xenial main
+    [ $? -ne 0 ] && warn "Couldn't add Kubernetes repo; skipping packages" && return 1
 
-    install_one kubelet $KUBELET_VERSION || die "kubelet install failed"
-    install_one kubeadm $KUBEADM_VERSION || die "kubeadm install failed"
-    install_one kubectl $KUBECTL_VERSION || die "kubectl install failed"
+    install_one kubelet $KUBELET_VERSION || warn "kubelet install failed"
+    install_one kubeadm $KUBEADM_VERSION || warn "kubeadm install failed"
+    install_one kubectl $KUBECTL_VERSION || warn "kubectl install failed"
 }
 
 ###########################################################################
@@ -643,14 +655,14 @@ function transmogrify_l4fame() {
     common_config_files
 
     for E in l4fame-node; do
-    	install_one $E || echo "$E failed" >&2
+    	install_one $E || warn "Install of $E failed"
     done
 
     install_Docker_Kubernetes
 
     mount_image
 
-    return $RET
+    return 0
 }
 
 ###########################################################################
@@ -683,11 +695,11 @@ function manifest_template_image() {
     [ $RET -eq 255 ] && quiet $SUDO rm -f $TEMPLATEIMG # corrupt
     if [ $RET -eq 0 ]; then
     	yesno "Re-use existing $TEMPLATEIMG"
-	[ $? -eq 0 ] && echo "Keep existing $TEMPLATEIMG" && return 0
+	[ $? -eq 0 ] && log "Keep existing $TEMPLATEIMG" && return 0
     else
 	Gfree_or_die $FAME_VFS_GBYTES "New template image"
     fi
-    echo Creating new $TEMPLATEIMG from $FAME_MIRROR
+    log Creating new $TEMPLATEIMG from $FAME_MIRROR
 
     # Different versions eat different arguments.  --dump-config used to be
     # an easy test but with later versions the arg list started getting
@@ -709,7 +721,7 @@ function manifest_template_image() {
     done
     VMDCFG="templates/vmd_$SUFFIX"
     [ ! -f $VMDCFG ] && die "vmdebootstrap $VMDVER is not implemented"
-    quiet echo Using $VMDCFG
+    log Using $VMDCFG
 
     VMD="$SUDO vmdebootstrap --no-default-configs --config=$VMDCFG"
 
@@ -727,7 +739,7 @@ function manifest_template_image() {
     quiet $SUDO chown $SUDO_USER "$VMDLOG" 	# --owner bug
     if [ $RET -ne 0 -o ! -f $TEMPLATEIMG ]; then
 	BAD=`mount | grep '/dev/loop[[:digit:]]+p[[:digit:]]+'`
-	[ $BAD ] && echo "mount of $BAD may be a problem" | tee -a $LOG
+	[ "$BAD" ] && warn "mount of $BAD may be a problem" | tee -a $LOG
     	die "Build of $TEMPLATEIMG failed"
     fi
 
@@ -813,7 +825,7 @@ function clone_VMs()
 	QCOW2="$FAME_DIR/$NEWHOST.qcow2"
 	if [ -f $QCOW2 ]; then
 	    yesno "Re-use $QCOW2"
-	    [ $? -eq 0 ] && echo "Keep existing $QCOW2" && continue
+	    [ $? -eq 0 ] && log "Keep existing $QCOW2" && continue
 	    $SUDO rm -f $QCOW2
 	else
 	    # For a short time there will be two new files.  The
@@ -822,7 +834,7 @@ function clone_VMs()
 	    Gfree_or_die $TMP "Temp raw image plus new qcow2"
 	fi
 
-	echo "Customize $NEWHOST..."
+	log "Customize $NEWHOST..."
     	NEWIMG="$FAME_DIR/$NEWHOST.img"
 	quiet cp $TEMPLATEIMG $NEWIMG
 
@@ -855,7 +867,7 @@ EOSSHCONFIG
 
 	mount_image
 
-	echo Converting $NEWIMG into $QCOW2
+	log Converting $NEWIMG into $QCOW2
 	quiet qemu-img convert -f raw -O qcow2 $NEWIMG $QCOW2
 	quiet rm -f $NEWIMG
 
@@ -911,7 +923,7 @@ function emit_libvirt_XML() {
 	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $NODEXML
     done
     cp templates/node_virsh.sh $FAME_DIR
-    echo "Change directory to ${ONHOST[FAME_DIR]} and run node_virsh.sh"
+    log "Change directory to ${ONHOST[FAME_DIR]} and run node_virsh.sh"
     return 0
 }
 
@@ -920,7 +932,7 @@ function emit_libvirt_XML() {
 
 if [ $# -ne 1 -o "${1:0:1}" = '-' ]; then	# Show current settings
 	echo_environment
-	inHost && echo -e "\nusage: `basename $0` [ -h|? ] [ VMcount ]"
+	inHost && log "\nusage: `basename $0` [ -h|? ] [ VMcount ]"
 	exit 0
 fi
 typeset -ir NODES=$1	# will evaluate to zero if non-integer
