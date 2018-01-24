@@ -77,15 +77,18 @@ export LC_ALL=C LANGUAGE=C LANG=C
 ###########################################################################
 # Helpers
 
+SEP_SECTION=0
+
 function sep() {
-    SEP=". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
-    echo -e "$SEP\n$*\n"
-    return 0
+    # Always log it and always see it to have something to grep the log.
+    let SEP_SECTION+=1
+    SEP="Section $SEP_SECTION -----------------------------------------------"
+    echo -e "$SEP\n$*\n" | tee -a $LOG
 }
 
 function log() {
 	[ "$FAME_VERBOSE" ] && echo -e "$*"
-	echo -e "$*" | tee -a "$LOG"
+	echo -e "$*" >> "$LOG"
 }
 
 function warn() {
@@ -109,11 +112,22 @@ function quiet() {
     	eval $* 2>&1 | tee -a $LOG
 	RET=${PIPESTATUS[-1]}	# cuz tee always works
     else
-    	eval $* >/dev/null 2>&1
+    	eval $* >> $LOG 2>&1 
 	RET=$?
     fi
-    [ $RET -ne 0 ] && warn "$* failed"
     return $RET
+}
+
+# Use this for dependable functions with local-only dependencies for success,
+# ie, file system ops.  Don't use it with "external" actions like apt-get.
+# It's like a decorator for quiet().
+
+function debug() {
+    declare -g FAME_DEBUG
+    SAVED_VERBOSE=$FAME_VERBOSE
+    FAME_VERBOSE=$FAME_DEBUG
+    quiet $*
+    FAME_VERBOSE=$SAVED_VERBOSE
 }
 
 function yesno() {
@@ -125,6 +139,8 @@ function yesno() {
     done
 }
 
+###########################################################################
+
 function Gfree_or_die() {
 	# $1 is the number of GB needed, $2-n is a description
 	NEEDED=$1
@@ -135,6 +151,8 @@ function Gfree_or_die() {
 	log "$* needs ${NEEDED}G of disk space; ${GF}G is available"
 	[ $GF -lt $NEEDED ] && die "$* needs $NEEDED GB ( > $GF GB free)"
 }
+
+###########################################################################
 
 function inDocker() {
     grep -Eq '^[[:digit:]]+:[[:alnum:]_,=]+:/docker/[[:xdigit:]]+$' /proc/$$/cgroup
@@ -177,8 +195,8 @@ EOMSG
     [ $? -ne 0 ] && log $PATTERN | quiet $SUDO tee -a $ACL
 
     # "Failed to parse default acl file" if these are wrong.
-    quiet $SUDO chown root:libvirt-qemu $ACL
-    quiet $SUDO chmod 640 $ACL
+    debug $SUDO chown root:libvirt-qemu $ACL
+    debug $SUDO chmod 640 $ACL
 
     return 0
 }
@@ -228,11 +246,23 @@ function verify_environment() {
     unset LD_LIBRARY_PATH
     export PATH="/bin:/usr/bin:/sbin:/usr/sbin"
 
+    # sudo has not yet been verified
+    if [ -f $LOG ]; then
+	PREV=$LOG.previous
+	debug rm -f $PREV
+	[  $? -eq 0 ] || die "Cannot rm $PREV, please do so"
+	debug mv -f $LOG $LOG.previous # vmdebootstrap will rewrite it
+	[ $? -eq 0 ] || die "Cannot mv $LOG, please remove it"
+    fi
+    log "`date`\n"
+    chmod 666 $LOG
+    [ $? -eq 0 ] || die "Cannot start $LOG"
+
     NEEDS=
     for V in FAME_DIR FAME_FAM; do
 	[ "${!V}" ] || NEEDS="$NEEDS $V"
     done
-    [ "$NEEDS" ] && echo "Set and export variable(s) $NEEDS" >&2 && exit 1
+    [ "$NEEDS" ] && die "Set and export variable(s) $NEEDS"
 
     fixup_Docker_environment	# May change a few working variables
 
@@ -242,18 +272,6 @@ function verify_environment() {
     [ -f "$FAME_FAM" ] || die "$FAME_FAM does not exist"
     [ -w "$FAME_FAM" ] || die "$FAME_FAM is not writeable"
 
-    # sudo has not yet been verified
-    if [ -f $LOG ]; then
-	PREV=$LOG.previous
-	quiet rm -f $PREV
-	[  $? -eq 0 ] || die "Cannot rm $PREV, please do so"
-	quiet mv -f $LOG $LOG.previous # vmdebootstrap will rewrite it
-	[ $? -eq 0 ] || die "Cannot mv $LOG, please remove it"
-    fi
-    log "`date`\n"
-    chmod 666 $LOG
-    [ $? -eq 0 ] || die "Cannot start $LOG"
-
     # Another user submitted errata which may include
     # bison dh-autoreconf flex gtk2-dev libglib2.0-dev livbirt-bin zlib1g-dev
     [ -x /bin/which -o -x /usr/bin/which ] || die "Missing command 'which'"
@@ -262,7 +280,7 @@ function verify_environment() {
     [ "$SUDO" ] && NEED="$NEED sudo"
     MISSING=
     for CMD in $NEED; do
-	quiet which $CMD || MISSING="$CMD $MISSING"
+	debug which $CMD || MISSING="$CMD $MISSING"
     done
     [ "$MISSING" ] && die "The following command(s) are needed:\n$MISSING"
     if [ "$USER" = root ]; then
@@ -281,7 +299,7 @@ function verify_environment() {
     [ $FAME_VDRAM -lt 786432 ] && die "FAME_VDRAM=$FAME_VDRAM KiB is too small"
     let TMP=${FAME_VDRAM}*${NODES}
     set -- `head -1 /proc/meminfo`
-    [ $2 -lt $TMP ] && die "Insufficient real RAM for $NODES nodes of $FAME_VDRAM KiB each"
+    [ $2 -lt $TMP ] && warn "Insufficient real RAM for $NODES nodes of $FAME_VDRAM KiB each"
 
     # Is FAM sized correctly?
     T=`stat -c %s "$FAME_FAM"`
@@ -389,31 +407,32 @@ typeset -r BINDREV="`echo $BINDFWD | tr ' ' '\n' | tac`"
 LAST_KPARTX=
 MOUNTDEV=
 
+# Do not die() from in here or you might get infinite recursion.
+
 function mount_image() {
     if [ -d $MNT ]; then	# Always try to undo it
     	for BIND in $BINDREV; do
-		[ -d $BIND ] && quiet $SUDO umount $MNT$BIND
+		[ -d $BIND ] && debug $SUDO umount $MNT$BIND
 	done
-    	quiet $SUDO umount $MNT
-	[ "$LAST_KPARTX" ] && quiet $SUDO kpartx -d $LAST_KPARTX
+    	debug $SUDO umount $MNT
+	[ "$LAST_KPARTX" ] && debug $SUDO kpartx -d $LAST_KPARTX
 	LAST_KPARTX=
 	MOUNTDEV=
-	quiet $SUDO rmdir $MNT	# Leave no traces
+	debug $SUDO rmdir $MNT	# Leave no traces
     fi
     [ $# -eq 0 ] && return 0
 
     # Now the fun begins.  Make /etc/grub.d/[00_header|10_linux] happy
     LOCALIMG="$*"
     [ ! -f $LOCALIMG ] && LAST_KPARTX= && return 1
-    quiet $SUDO mkdir -p $MNT
-    quiet $SUDO kpartx -as $LOCALIMG
+    debug $SUDO mkdir -p $MNT
+    debug $SUDO kpartx -as $LOCALIMG
 
-    # Do not die() from in here or you might get infinite recursion.
-    [ $? -ne 0 ] && echo "kpartx of $LOCALIMG failed" >&2 && exit 1
+    [ $? -ne 0 ] && echo "kpartx of $LOCALIMG failed" >&2 && exit 1 # NO DIE()
     LAST_KPARTX=$LOCALIMG
     DEV=`losetup | awk -v mounted=$LAST_KPARTX '$0 ~ mounted {print $1}'`
     MOUNTDEV=/dev/mapper/`basename $DEV`p1
-    quiet $SUDO mount $MOUNTDEV $MNT
+    debug $SUDO mount $MOUNTDEV $MNT
     if [ $? -ne 0 ]; then
     	$SUDO kpartx -d $LAST_KPARTX
 	LAST_KPARTX=
@@ -423,15 +442,15 @@ function mount_image() {
     # bind mounts to make /etc/grub.d/XXX happy when they call grub-probe
     OKREV=
     for BIND in $BINDFWD; do
-	quiet $SUDO mkdir -p $MNT$BIND
-	quiet $SUDO mount --bind $BIND $MNT$BIND
+	debug $SUDO mkdir -p $MNT$BIND
+	debug $SUDO mount --bind $BIND $MNT$BIND
 	if [ $? -ne 0 ]; then
 	    warn "Bind mount of $BIND failed"
-	    [ "$OKREV" ] && for O in "$OKREV"; do quiet $SUDO umount $MNT$O; done
-	    quiet $SUDO umount $MNT
+	    [ "$OKREV" ] && for O in "$OKREV"; do debug $SUDO umount $MNT$O; done
+	    debug $SUDO umount $MNT
 	    return 1
 	fi
-	log Bound $BIND
+	debug echo Bound $BIND
 	OKREV="$BIND $OKREV"	# reverse order is important during failures
     done
     return 0
@@ -490,6 +509,7 @@ function expose_proxy() {
 function install_one() {
     PKG=$1
     [ $# -eq 2 ] && VER="=$2" || VER=
+    [ "$VER" ] && DG='--allow-downgrades' || DG=
     log Installing $PKG$VER
     quiet $SUDO chroot $MNT apt-cache show $PKG$VER	# "search" is fuzzy
     [ $? -ne 0 ] && warn "No candidate matches $PKG" && return 1
@@ -501,8 +521,8 @@ function install_one() {
     # The inner single quotes are preserved across the chroot to create a
     # single arg for "bash -c".
     quiet $SUDO chroot $MNT /bin/bash -c \
-	"'DEBIAN_FRONTEND=noninteractive; apt-get --yes install $PKG$VER'"
-    [ $? -ne 0 ] && warn "Install failed" && return 1
+	"'DEBIAN_FRONTEND=noninteractive; apt-get --yes $DG install $PKG$VER'"
+    [ $? -ne 0 ] && warn "Installation of $PKG$VER failed" && return 1
 
     quiet $SUDO chroot $MNT dpkg -l $PKG	# Paranoia
     [ $? -ne 0 ] && warn "dpkg -l after install failed" && return 1
@@ -519,14 +539,13 @@ function install_one() {
 
 function apt_add_repository() {
     SOURCES="/etc/apt/sources.list.d/$1"
-    log "Updating apt with $SOURCES..."
     shift
     URL=`tr ' ' '\n' <<< "$*" | grep '^http'`
-    log "Contacting $URL..."
-    wget -O /dev/null $URL > /dev/null 2>&1
+    log "Contacting $URL before updating $SOURCES..."
+    debug wget -O /dev/null $URL
     [ $? -ne 0 ] && die "Cannot reach $URL"
 
-    cat << EOSOURCES | sudo tee -a $MNT$SOURCES
+    cat << EOSOURCES | quiet $SUDO tee -a $MNT$SOURCES
 # Added by emulation_configure.bash `date`
 
 $* 
@@ -581,7 +600,7 @@ function install_Docker_Kubernetes() {
     	https://download.docker.com/linux/debian $RELEASE stable
 
     install_one docker-ce $DOCKER_VERSION
-    [ $? -ne 0 ] && warn "Could not install Docker; skipping Kubernetes" && return 1
+    [ $? -ne 0 ] && warn "No Docker; skipping Kubernetes" && return 1
 
     quiet $SUDO chroot $MNT /usr/sbin/adduser $FAME_USER docker
 
@@ -591,9 +610,9 @@ function install_Docker_Kubernetes() {
     apt_add_repository kubernetes.list deb http://apt.kubernetes.io/ kubernetes-xenial main
     [ $? -ne 0 ] && warn "Couldn't add Kubernetes repo; skipping packages" && return 1
 
-    install_one kubelet $KUBELET_VERSION || warn "kubelet install failed"
-    install_one kubeadm $KUBEADM_VERSION || warn "kubeadm install failed"
-    install_one kubectl $KUBECTL_VERSION || warn "kubectl install failed"
+    install_one kubelet $KUBELET_VERSION
+    install_one kubeadm $KUBEADM_VERSION
+    install_one kubectl $KUBECTL_VERSION
 }
 
 ###########################################################################
@@ -603,7 +622,7 @@ function install_Docker_Kubernetes() {
 
 function transmogrify_l4fame() {
     mount_image $TEMPLATEIMG || return 1
-    sep "Extending template with L4FAME: updating sources..."
+    sep "Extending template with L4FAME"
     APTCONF="$MNT/etc/apt/apt.conf.d/00FAME.conf"
 
     # Make allowances for container-based self-hosted repo
