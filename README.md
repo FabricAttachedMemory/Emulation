@@ -159,14 +159,13 @@ The following files will be created in $FAME_DIR after a successful run.  Note: 
 
 The nodes (VMs) participate in a distributed file system.  That file system
 is coordinated by a single master daemon known as the Librarian.  Before
-starting the nodes the Librarian must be 
+starting the nodes, the Librarian must be 
 **[configured as discussed in this document.](Librarian.md)**  Values used
 in this configuration step have a direct impact on the size of $FAME_FAM.
 
 ## Starting the nodes
 
-Once the librarian is running, you can declare the nodes to the libvirt
-subsystem:
+Once the librarian is running, you can declare the nodes to the libvirt subsystem:
 
 1. cd $FAME_DIR
 1. ./node_virsh define
@@ -188,6 +187,17 @@ every node for inter-node access as well as access from the host.
 A reasonable development environment (gcc, make) is available at first boot.
 "apt" and "aptitude" are configured to allow package installation and
 updates per the FAME_MIRROR, FAME_L4FAME, and FAME_PROXY settings above.
+
+## Networking and DNS to the FAME "nodes"
+
+With resolvconf, NetworkManager, and systemd-resolved all vying for attention,
+this is highly non-deterministic :-)   More will be revealed...
+
+For now, node01 == 192.168.42.1, node02 == 192.168.42.2, etc.
+
+You can ssh to the node as the "l4tm" user.  If you set your $HOME/.ssh/config
+file correctly using the id_rsa.nophrase private key the ssh occurs without
+further typing.
 
 ## Running FAME on non-Debian host systems
 
