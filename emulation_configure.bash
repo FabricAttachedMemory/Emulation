@@ -48,10 +48,8 @@ export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 export FAME_L4FAME=${FAME_L4FAME:-http://downloads.linux.hpe.com/repo/l4fame/Debian}
 
 # A generic kernel metapackage is not created.  As we don't plan to update
-# the kernel much, it's reasonably safe to hardcode this.  Version keeps
-# shell and apt regex from blowing up on the '+' and trying the debug package.
-# Experts only.
-export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.14.0-l4fame+"}
+# the kernel much, it's reasonably safe to hardcode this regex.
+export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.14.0-fame"}
 
 ###########################################################################
 # Hardcoded to match content in external config files.  If any of these
@@ -524,9 +522,11 @@ function install_one() {
 	"'DEBIAN_FRONTEND=noninteractive; apt-get --yes $DG install $PKG$VER'"
     [ $? -ne 0 ] && warn "Installation of $PKG$VER failed" && return 1
 
-    quiet $SUDO chroot $MNT dpkg -l $PKG	# Paranoia
-    [ $? -ne 0 ] && warn "dpkg -l after install failed" && return 1
-    return 0
+    # The package name can be a (short) regex so be careful with the paranoia
+    $SUDO chroot $MNT dpkg -l | grep -q $PKG
+    RET=$?
+    [ $RET -ne 0 ] && warn "dpkg -l after install failed"
+    return $RET
 }
 
 ###########################################################################
@@ -663,8 +663,8 @@ function transmogrify_l4fame() {
     # Auxiliary packages for building things like autofs (dkms) for Docker
     KV=${FAME_KERNEL##linux-image-}
     if [ "$KV" ]; then
-    	install_one "linux-headers-$KV"
-    	install_one "linux-libc-dev_$KV"	# Yes, underscore
+    	install_one "linux-headers*$KV*"
+    	install_one "linux-libc-dev*$KV*"	# Yes, underscore
     fi
 
     # Installing a kernel took info from /proc and /sys that set up
