@@ -473,6 +473,7 @@ function validate_template_image() {
 # avoid a reported issue in the VMD variable.
 
 function expose_proxy() {
+    export https_proxy=
     if [ "$FAME_PROXY" ]; then	# may have come from http_proxy originally
     	if [ "${http_proxy:-}" ]; then
 	    echo "http_proxy=$http_proxy (existing environment)"
