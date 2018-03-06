@@ -41,7 +41,8 @@ export FAME_VDRAM=${FAME_VDRAM:-786432}
 export FAME_MIRROR=${FAME_MIRROR:-http://ftp.us.debian.org/debian}
 
 export FAME_PROXY=${FAME_PROXY:-$http_proxy}
-http_proxy=${http_proxy:-}			# Yes, after FAME_PROXY
+export http_proxy=${http_proxy:-}		# Yes, after FAME_PROXY
+export https_proxy=${https_proxy:-}
 
 export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 
@@ -473,7 +474,6 @@ function validate_template_image() {
 # avoid a reported issue in the VMD variable.
 
 function expose_proxy() {
-    export https_proxy=
     if [ "$FAME_PROXY" ]; then	# may have come from http_proxy originally
     	if [ "${http_proxy:-}" ]; then
 	    echo "http_proxy=$http_proxy (existing environment)"
@@ -482,7 +482,7 @@ function expose_proxy() {
 	fi
 	[ "${FAME_PROXY:0:7}" != "http://" ] && FAME_PROXY="http://$FAME_PROXY"
 	http_proxy=$FAME_PROXY
-	https_proxy=${https_proxy:-${http_proxy}}
+	https_proxy=${https_proxy:-${http_proxy}}	# yes reuse it
 	export http_proxy https_proxy FAME_PROXY
 	return 0
     fi
@@ -868,10 +868,11 @@ function clone_VMs()
 	DOTSSH=$MNT/home/$FAME_USER/.ssh
 	quiet $SUDO mkdir -m 700 $DOTSSH
 	quiet $SUDO cp templates/id_rsa.nophrase     $DOTSSH
+	quiet $SUDO cp templates/id_rsa.nophrase.pub $DOTSSH
 	quiet $SUDO cp templates/id_rsa.nophrase.pub $DOTSSH/authorized_keys
-	# The "$FAME_USER" user in the chroot might be different from the host.
 
-	# FIXME but this is a reasonable assumption on a fresh vmdebootstrap.
+	# FIXME: "$FAME_USER" user in the chroot might be different from the
+	# host but this is a reasonable assumption on a fresh vmdebootstrap.
 	quiet $SUDO chown -R 1000:1000 $DOTSSH
 	quiet $SUDO chmod 400 $DOTSSH/id_rsa.nophrase
 	quiet $SUDO tee $DOTSSH/config << EOSSHCONFIG
@@ -883,7 +884,8 @@ Host node*
 	IdentityFile ~/.ssh/id_rsa.nophrase
 EOSSHCONFIG
 
-    	quiet $SUDO chroot $MNT systemctl enable tm-lfs
+	# FIXME: this belongs in package scripting
+    	$SUDO chroot $MNT /bin/systemctl enable tm-lfs
 
 	mount_image
 
