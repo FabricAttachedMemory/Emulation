@@ -12,27 +12,51 @@ Fabric-Attached Memory Emulation (FAME) is an environment that can be used to ex
 
 The emulation configurator script of this project, *emulation_configure.bash*,centers around a QEMU bootable file system image produced by vmdebootstrap.  Thus the script must be run in a Debian environment.  Tested installations are Debian Stretch and Ubuntu 16.04 and later.  Reasonable comfort with the QEMU/KVM libvirt and virsh commands is useful but not absolutely required.
 
-## Setup of the FAME IVSHMEM backing file
+## Configuration for emulation_configure.bash
 
-Before running *emulation_configure.sh* several environment variables must
-be set or exported that represent choices for the script.  
-The VM "physical" address space is backed on the QEMU host by a file in the file system.  Thus the emulated FAM is persistent (with respect to the lifetime of the IVSHMEM backing file).  This file must be created before running the configuration script.
+Before you can run the script some conditions need to be met.  Some of the are packages, some are environment variables, and some involve file locations.
 
-VM images are
-build from two repos:
+### OS and extra packages
+
+emulation_configure.bash must be run in a Debian environment.  Debian Stretch (9.2 and later) have been tested recently, as has Ubuntu 16 and 17.
+
+Install packages for the commands __vmdebootstrap, sudo, and virsh__.  The actual package names may differ depending on your exact distro.
+
+### Artifact directory and the FAME IVSHMEM backing file
+
+The node emulated FAM is backed on the QEMU host by a file in the host file system.  Thus the emulated FAM is persistent (with respect to the lifetime of the IVSHMEM backing file).  This file must be created before running the configuration script.  Additionally, the script will generate files (node images, logs, etc).   All node VMs will share that one file so the global shared address space effect is realized.
+
+First choose a location for all these files; a reasonable place is $HOME/FAME.  Export the following environment variable then create the directory:
+
+  $ export FAME_DIR=$HOME/FAME
+  $ mkdir $FAME_DIR
+  
+The backing store file must exist before running the script as it is scanned for size during VM configuration.  The file must be "big enough" to hold the expected data from all nodes (VMs).  The size must be between 1G and 256G and must be a power of 2.  There can be a little trial and error to get it right for your usage, but changing it and re-running the script is trivial.  The file is referenced by the $FAME_FAM variable.  A good location is in $FAME_DIR (but that's not a requirement).
+There are a few other attributes that should be set now:
+
+  $ export FAME_FAM=$FAME_DIR/FAM   # So the file is at $HOME/FAME/FAM
+  $ fallocate -l 16G $FAME_FAM
+  $ chgrp libvirt-qemu $FAME_FAM
+  $ chmod 660 $FAME_FAM
+  
+### Environment variables
+
+Two have already been discussed (FAME_DIR and FAME_FAM), here are the rest.  
+
+First, http_proxy and https_proxy will be take from existing variables and used as defaults.
+
+Second, understand that node VM images are build from two repos:
 
 1. A "stock" Debian repo that feeds vmdebootstrap for the bulk of the VM image
-2. An "L4FAME" (Linux for FAME) repo that has about a dozen packages
-   needed by each node.
+2. An "L4FAME" (Linux for FAME) repo that has about a dozen packages needed by each node.
 
-The environment variables specify the repo locations as well as other QEMU
-operating values.  They are listed here in alphabetical order:
+Environment variables specify the repo locations as well as other QEMU operating values.  They are listed here in alphabetical order:
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| FAME_DIR | All resulting artifacts are located here, including "env.sh" that lists the FAME_XXX values.  This is a good place to allocate $FAME_FAM. | <unset> |
-| FAME_FAM | The "backing store" for the Global NVM seen by the nodes; it's the file used by QEMU IVSHMEM. | REQUIRED! |
-| FAME_KERNEL | The kernel package pulled from the $FAME_L4FAME repo (multiple kernels may exist). | linux-image-4.14.0-l4fame+ |
+| FAME_DIR | All resulting artifacts are located here, including "env.sh" that lists the FAME_XXX values.  This is a good place to allocate $FAME_FAM. | Must be explicitly set |
+| FAME_FAM | The "backing store" for the Global NVM seen by the nodes; it's the file used by QEMU IVSHMEM. | Must be explicitly set |
+| FAME_KERNEL | The kernel package pulled from the $FAME_L4FAME repo. | linux-image-4.14.0 |
 | FAME_L4FAME | The auxiliary L4FAME repo.  The default global copy is maintained by HPE but there are ways to build your own. | http://downloads.linux.hpe.com/repo/l4fame/Debian |
 | FAME_MIRROR | The primary Debian repo used by vmdebootstrap. | http://ftp.us.debian.org/debian |
 | FAME_PROXY | Any proxy needed to reach $FAME_MIRROR.  It can be different from $http_proxy if you have a weird setup. | $http_proxy |
