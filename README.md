@@ -10,9 +10,9 @@ The shared global address space is manipulated on each node via the Linux filesy
 
 Fabric-Attached Memory Emulation (FAME) is an environment that can be used to explore this new paradigm of The Machine.  FAME employs QEMU virtual machines (VMs) to be the "nodes" in The Machine.  A feature of QEMU, Inter-Virtual Machine Shared Memory (IVSHMEM), is configured across all the node VMs so they see a shared, global memory space.  This emulation is a "good-enough" approximation of real hardware to allow large amounts of software development on the nodes.  [Read more about emulation here](https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-and-Simulation) and [QEMU/FAME here](https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).
 
-The emulation configurator script of this project, *emulation_configure.bash*,centers around a QEMU bootable file system image produced by vmdebootstrap.  Thus the script must be run in a Debian environment.  Tested installations are Debian Stretch and Ubuntu 16.04 and later.  Reasonable comfort with the QEMU/KVM libvirt and virsh commands is useful but not absolutely required.
-
 ## Configuration for emulation_configure.bash
+
+Prior experience with the QEMU/KVM suite and virsh command is useful but not absolutely required.
 
 Before you can run the script some conditions need to be met.  Some of the are packages, some are environment variables, and some involve file locations.
 
@@ -28,17 +28,21 @@ The node emulated FAM is backed on the QEMU host by a file in the host file syst
 
 First choose a location for all these files; a reasonable place is $HOME/FAME.  Export the following environment variable then create the directory:
 
-  $ export FAME_DIR=$HOME/FAME
-  $ mkdir $FAME_DIR
-  
+```
+    $ export FAME_DIR=$HOME/FAME
+    $ mkdir $FAME_DIR
+```
+
 The backing store file must exist before running the script as it is scanned for size during VM configuration.  The file must be "big enough" to hold the expected data from all nodes (VMs).  The size must be between 1G and 256G and must be a power of 2.  There can be a little trial and error to get it right for your usage, but changing it and re-running the script is trivial.  The file is referenced by the $FAME_FAM variable.  A good location is in $FAME_DIR (but that's not a requirement).
 There are a few other attributes that should be set now:
 
-  $ export FAME_FAM=$FAME_DIR/FAM   # So the file is at $HOME/FAME/FAM
-  $ fallocate -l 16G $FAME_FAM
-  $ chgrp libvirt-qemu $FAME_FAM
-  $ chmod 660 $FAME_FAM
-  
+```
+    $ export FAME_FAM=$FAME_DIR/FAM   # So the file is at $HOME/FAME/FAM
+    $ fallocate -l 16G $FAME_FAM
+    $ chgrp libvirt-qemu $FAME_FAM
+    $ chmod 660 $FAME_FAM
+```
+
 ### Environment variables
 
 Two have already been discussed (FAME_DIR and FAME_FAM), here are the rest.  
@@ -48,7 +52,7 @@ First, http_proxy and https_proxy will be take from existing variables and used 
 Second, understand that node VM images are build from two repos:
 
 1. A "stock" Debian repo that feeds vmdebootstrap for the bulk of the VM image
-2. An "L4FAME" (Linux for FAME) repo that has about a dozen packages needed by each node.
+1. An "L4FAME" (Linux for FAME) repo that has about a dozen packages needed by each node.
 
 Environment variables specify the repo locations as well as other QEMU operating values.  They are listed here in alphabetical order:
 
@@ -60,51 +64,38 @@ Environment variables specify the repo locations as well as other QEMU operating
 | FAME_L4FAME | The auxiliary L4FAME repo.  The default global copy is maintained by HPE but there are ways to build your own. | http://downloads.linux.hpe.com/repo/l4fame/Debian |
 | FAME_MIRROR | The primary Debian repo used by vmdebootstrap. | http://ftp.us.debian.org/debian |
 | FAME_PROXY | Any proxy needed to reach $FAME_MIRROR.  It can be different from $http_proxy if you have a weird setup. | $http_proxy |
+| FAME_USER | The normal (non-root) user on each node | l4mdc |
 | FAME_VCPUS | The number of virtual CPUs for each VM | 2 |
 | FAME_VDRAM | Virtual DRAM allocated for each VM in KiB | 768432 |
-| FAME_VERBOSE |Normally the script is fairly quiet, only emitting cursory progress messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $FAME_OUTDIR/fabric_emulation.log | unset |
+| FAME_VFS_GBYTES | The maximum size of the golden image and each node VM image | 6 |
+| FAME_VERBOSE | Normally the script only emits cursory summary messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $FAME_DIR/fabric_emulation.log | unset |
 
 If you run the script with no options it will print the current variable values:
 
 ```
 $ ./emulation_configure.bash
 http_proxy=
+https_proxy=
 FAME_DIR=
 FAME_FAM=
-FAME_KERNEL=linux-image-4.14.0-l4fame+
+FAME_KERNEL=linux-image-4.14.0-fame
 FAME_L4FAME=http://downloads.linux.hpe.com/repo/l4fame/Debian
 FAME_MIRROR=http://ftp.us.debian.org/debian
 FAME_PROXY=
+FAME_USER=l4mdc
 FAME_VCPUS=2
 FAME_VDRAM=786432
 FAME_VERBOSE=
+FAME_VFS_GBYTES=6
 ```
 
-Variables can be exported for use by the script:
+Variables can be set and exported for use prior to running the script.  When it is run with an argument to create VMs, the values will be stored in $FAME_DIR/env.sh.  This file can be sourced to recreate the desired runtime.
 
-    $ export FAME_MIRROR=http://a.b.com/debian
-    $ export FAME_VERBOSE=yes
-
-The file referenced by $FAME_FAM must exist and be at least 1G.  It must also belong to the group "libvirt-qemu" and have permissions 66x.  Suggestions:
-
-    $ export FAME_DIR=$HOME/FAME
-    $ mkdir -p $FAME_DIR
-    $ export FAME_FAM=$FAME_DIR/FAM
-    $ fallocate -l 16G $FAME_FAM
-    $ chgrp libvirt-qemu $FAME_FAM
-    $ chmod 664 $FAME_FAM
-    
-The size of 16G will be explained below in the section on The Librarian.  Trust me, this is a good starting number.
-
-After setting variables, run the script; it takes the desired number of VMs
-as its sole argument.  Several of the commands in the script must be run
-as root.  You can either run the script as "yourself" in which case you'll
-be prompted early for your password for "sudo":
+After setting variables, run the script; it takes the desired number of VMs as its sole argument.  
 
     $ ./emulation_configure.bash n
-
-or you can start it with sudo.  Variables must be seen in the script's
-environment so use the "-E" command if invoking sudo directly:
+    
+Early on you'll be prompted early for your password for "sudo", as several of the commands in the script need root privilege.  If you want to run the script via sudo, you can do that, if you preserve the environment variables:
 
     $ sudo -E ./emulation_configure.bash n
 
@@ -112,11 +103,11 @@ environment so use the "-E" command if invoking sudo directly:
 
 emulation_configure.bash performs the following actions:
 
-1. Validates the host environment, starting with execution as root or sudo.  While it doesn't explicitly limit its execution to Debian Jessie, it does check for commands that may not exist on other Debian variants.  Other things are checked like file space and internal consistency.
+1. Validates the host environment, ensuring commands are installed, verifying file space and internal consistency.
 1. Creates a libvirt virtual bridged network called "node_emul" which
-  2. Provides DHCP services via dnsmasq, and DNS resolution for names like "node02"
-  2. Links all emulated VM "nodes" together on an intranet (ala The Machine)
-  2. Uses NAT to connect the intranet to the host system's external network.
+    1. Provides DHCP services via dnsmasq, and DNS resolution for names like "node02"
+    1. Links all emulated VM "nodes" together on an intranet (ala The Machine)
+    1. Uses NAT to connect the intranet to the host system's external network.
 1. Uses vmdebootstrap(1m) to create a new disk image (file) that serves
    as the "golden image" for subsequent use.  This is the step that pulls
    from $FAME_MIRROR possibly using $FAME_PROXY.  Most of the configuration
