@@ -1,56 +1,24 @@
 # Emulation of Fabric-Attached Memory for The Machine
 
-Experience the developer environment of next year's hardware _today_.  The Machine from Hewlett Packard Enterprise prototype offers a new paradigm in memory-centric computing.  While the prototype hardware announced in 2016 will not be generally available, you can experiment with fabric-attached memory right now.
+Experience the developer environment of next year's hardware _today_.  The Machine from Hewlett Packard Enterprise offers a new paradigm in memory-centric computing.  While the prototype hardware announced in 2016 will not be generally available, you can experiment with Fabric-Attached Memory (FAM) right now.
 
 ## Description
 
-This repo delivers a script to create virtual machine file system images directly from a Debian repo.  VMs are then customized and configured to emulate the fabric-attached memory of The Machine.  Those statements should make much more sense after [reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
+The Machine is a homogenous node-based cluster of SoCs running Linux with standard direct-attached DRAM.  All nodes also provide a range of memory attached to a foreign fabric (actually a Gen-Z precursor).   All segments of FAM are connected together and all of FAM is visible to all nodes in a shared fashion.  These statements should make much more sense after [reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
 
-Fabric-Attached Memory Emulation is an environment that can be used to explore the new architectural paradigm of The Machine.  Some knowledge of The Machine architecture is useful to use this suite, but it actually ignores the minutiae of the hardware.  Reasonable comfort with the QEMU/KVM/libvirt/virsh suite is highly recommended.
+The shared global address space is manipulated on each node via the Linux filesystem API.  A new file system, the Librarian Filesystem Suite (LFS), allows familiar operations (open/create/allocate/delete) to request chunks of FAM.  Finally, the file can be memory-mapped via mmap(2) and deliver load-store operations directly to FAM without the OS or another API.  This is the promise of Memory-Driven Computing.  A daemon on each node communicates with a single server process to realize a global, distributed file system across nodes of The Machine.
 
-The emulation employs QEMU virtual machines performing the role of "nodes" in The Machine.  Inter-Virtual Machine Shared Memory (IVSHMEM) is configured across all the "nodes" so they see a shared, global memory space.  This space can be accessed via mmap(2) and will behave just the same as the memory centric-computing on The Machine.
+Fabric-Attached Memory Emulation (FAME) is an environment that can be used to explore this new paradigm of The Machine.  FAME employs QEMU virtual machines (VMs) to be the "nodes" in The Machine.  A feature of QEMU, Inter-Virtual Machine Shared Memory (IVSHMEM), is configured across all the node VMs so they see a shared, global memory space.  This emulation is a "good-enough" approximation of real hardware to allow large amounts of software development on the nodes.  [Read more about emulation here](https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-and-Simulation) and [QEMU/FAME here](https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).
 
-### IVSHMEM connectivity between all VMs
+The emulation configurator script of this project, *emulation_configure.bash*,centers around a QEMU bootable file system image produced by vmdebootstrap.  Thus the script must be run in a Debian environment.  Tested installations are Debian Stretch and Ubuntu 16.04 and later.  Reasonable comfort with the QEMU/KVM libvirt and virsh commands is useful but not absolutely required.
 
-Memory-driven computing (MDC) in The Machine is done via memory accesses
-identical to those used with legacy memory-mapping.  Emulation provides
-a resource for such [user space programming via IVSHMEM]
-(https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).
-
-Each VM sees a pseudo-PCI device with a memory base address registers (BAR)
-representing physical address space.  This can be seen in detail in a VM via
-"lspci -vv".  Resource2 is memory-mapped access to $FAME_FAM; its size is
-the size of the file on the host sytstem.  This is presented to the VM kernel
-as live, cacheable, unmapped physical address space.
-
-The VM "physical" address space is backed on the host the file $FAME_FAM.
-This file must exist before invoking emulation_configure.bash, and its size
-must be a power of two.  Anything done to the address space on the VM is
-reflected in the file on the host, and vice verse.
-
-Finally, all VMs (i.e, "nodes") are started with the same IVSHMEM stanza.
-Thus they all share that pseudo-physical memory space.  That is the essence
-of fabric-attached memory emulation.
-
-## Setup and Execution
-
-The Machine project at HPE created a Debian derivative known as L4TM: Linux
-for The Machine.  The emulation configurator script of this project,
-*emulation_configure.bash*, was originally created for Debian 8.x (Jessie). 
-It has been upgraded to work with Stretch (Debian 9.x) and Ubuntu 16/17.
-
-The script centers around the image produced by vmdebootstrap; other
-packages are required as well.  These existence of these packages is checked
-by the script during its early phase.  You may get output requesting
-the installation of additional packages.  Resolve those requests and then you can
-re-run the script.
-
-If your host system is NOT Stretch or Ubuntu 16/17 you may be able to
-use a Docker Stretch container to create the VMs, then run them under QEMU
-on your host OS.  [That effort documented here.](Docker.md)
+## Setup of the FAME IVSHMEM backing file
 
 Before running *emulation_configure.sh* several environment variables must
-be set or exported that represent choices for the script.  VM images are
+be set or exported that represent choices for the script.  
+The VM "physical" address space is backed on the QEMU host by a file in the file system.  Thus the emulated FAM is persistent (with respect to the lifetime of the IVSHMEM backing file).  This file must be created before running the configuration script.
+
+VM images are
 build from two repos:
 
 1. A "stock" Debian repo that feeds vmdebootstrap for the bulk of the VM image
