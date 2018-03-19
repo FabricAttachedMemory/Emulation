@@ -526,7 +526,7 @@ function expose_proxy() {
 # $2: Revision (optional)
 
 function install_one() {
-    local PKG RET VER
+    local DG PKG RET VER
     PKG=$1
     [ $# -eq 2 ] && VER="=$2" || VER=
     [ "$VER" ] && DG='--allow-downgrades' || DG=
@@ -656,7 +656,7 @@ function install_Docker_Kubernetes() {
 function transmogrify_l4fame() {
     local APTCONF E KV RESOLVdotCONF
     mount_image $TEMPLATEIMG || return 1
-    sep "Extending template with L4FAME"
+    sep "Extending the image template with L4FAME"
     APTCONF="$MNT/etc/apt/apt.conf.d/00FAME.conf"
 
     # Make allowances for container-based self-hosted repo
@@ -686,12 +686,15 @@ function transmogrify_l4fame() {
     [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
     apt_mark_hold "$FAME_KERNEL"
 
-    # Auxiliary packages for building things like autofs (dkms) for Docker
-    KV=${FAME_KERNEL##linux-image-}
-    if [ "$KV" ]; then
-    	install_one "linux-headers*$KV*"
-    	install_one "linux-libc-dev*$KV*"	# Yes, underscore
-    fi
+    # Auxiliary packages for building things like autofs (dkms) for Docker.
+    # Retrieve full version via the chroot environment, not the local one.
+    set -- `$SUDO chroot $MNT apt-cache search $FAME_KERNEL`
+    KV=${1##linux-image-}
+    [ "$KV" ] || die "Cannot retrieve full version from $FAME_KERNEL"
+
+    # One of them is just a version, and the other is part of the name
+    install_one "linux-headers-$KV"	 # "linux-headers" is a virt pkg
+    install_one linux-libc-dev "${KV}-1" # Yes, -1
 
     # Installing a kernel took info from /proc and /sys that set up
     # /etc/fstab, but it's from the host system.  Fix that, along with
@@ -914,7 +917,7 @@ Host node*
 EOSSHCONFIG
 
 	# FIXME: this belongs in package scripting
-    	$SUDO chroot $MNT /bin/systemctl enable tm-lfs
+    	quiet $SUDO chroot $MNT /bin/systemctl enable tm-lfs
 
 	mount_image
 
