@@ -106,6 +106,7 @@ function die() {
 }
 
 function quiet() {
+    local RET
     log "$*"
     if [ "$FAME_VERBOSE" ]; then
     	eval $* 2>&1 | tee -a $LOG
@@ -122,6 +123,7 @@ function quiet() {
 # It's like a decorator for quiet().
 
 function debug() {
+    local SAVED_VERBOSE
     declare -g FAME_DEBUG=
     SAVED_VERBOSE=$FAME_VERBOSE
     FAME_VERBOSE=$FAME_DEBUG
@@ -130,6 +132,7 @@ function debug() {
 }
 
 function yesno() {
+    local RSP
     while true; do
     	read -p "$* (yes/no) ? " RSP
 	[ "$RSP" = yes ] && return 0
@@ -141,6 +144,7 @@ function yesno() {
 ###########################################################################
 
 function Gfree_or_die() {
+        local GF NEEDED
 	# $1 is the number of GB needed, $2-n is a description
 	NEEDED=$1
 	shift
@@ -166,6 +170,7 @@ function inHost() {	# More legible than "! inDocker"
 # Helper for qemu-bridge-helper, contained in package qemu-system-common
 
 function verify_QBH() {
+    local ACL PATTERN QBH
     QBH=/usr/lib/qemu/qemu-bridge-helper	# qemu-system-common
     ACL=/etc/qemu/bridge.conf 			# ACL mechanism: allow/deny
 
@@ -218,6 +223,7 @@ function fixup_Docker_environment() {
 }
 
 function echo_environment() {
+    local PREFIX VARS
     [ $# -gt 0 ] && PREFIX="$1 " || PREFIX=	# But no gratuitous space!
     echo "${PREFIX}http_proxy=$http_proxy"
     VARS=`env | grep FAME_ | cut -d= -f1 | sort`
@@ -239,6 +245,7 @@ function echo_environment() {
 [ `id -u` -ne 0 ] && SUDO="sudo -E" || SUDO=
 
 function verify_environment() {
+    local CMD LOOPS MISSING MAYBE NEED NEEDS PREV T TEMP
     sep Verifying host environment
 
     # Close some obvious holes before SUDO
@@ -336,6 +343,15 @@ function verify_environment() {
 
     echo_environment export > $FAME_DIR/env.sh	# For next time
 
+    # NOW, possibly rewrite FAME_L4FAME for use with build/repo containers.
+    # Then insure it's reachable, otherwise it won't happen until after
+    # the vmdebootstrap.
+
+    if [[ $FAME_L4FAME =~ localhost ]]; then
+	FAME_L4FAME=`echo $FAME_L4FAME | sed -e "s/localhost/$TORMSIP/"`
+    fi
+    wgetURL $FAME_L4FAME
+
     return 0
 }
 
@@ -343,6 +359,7 @@ function verify_environment() {
 # libvirt / virsh / qemu / kvm stuff
 
 function libvirt_bridge() {
+    local CMD NETXML VIRSH
     inDocker && return 0
     sep Configure libvirt network bridge \"$NETWORK\"
 
@@ -409,6 +426,7 @@ MOUNTDEV=
 # Do not die() from in here or you might get infinite recursion.
 
 function mount_image() {
+    local BIND LOCALIMG
     if [ -d $MNT ]; then	# Always try to undo it
     	for BIND in $BINDREV; do
 		[ -d $BIND ] && debug $SUDO umount $MNT$BIND
@@ -459,6 +477,7 @@ function mount_image() {
 # Tri-state return value
 
 function validate_template_image() {
+    local RET
     [ -f $TEMPLATEIMG ] || return 1		# File not found
     mount_image $TEMPLATEIMG || return 255	# aka return -1: corrupt
     test -d $MNT/home/$FAME_USER		# see vmdebootstrap --user
@@ -474,6 +493,7 @@ function validate_template_image() {
 # avoid a reported issue in the VMD variable.
 
 function expose_proxy() {
+    local RC TMP
     if [ "$FAME_PROXY" ]; then	# may have come from http_proxy originally
     	if [ "${http_proxy:-}" ]; then
 	    echo "http_proxy=$http_proxy (existing environment)"
@@ -506,6 +526,7 @@ function expose_proxy() {
 # $2: Revision (optional)
 
 function install_one() {
+    local PKG RET VER
     PKG=$1
     [ $# -eq 2 ] && VER="=$2" || VER=
     [ "$VER" ] && DG='--allow-downgrades' || DG=
@@ -526,7 +547,7 @@ function install_one() {
     # The package name can be a (short) regex so be careful with the paranoia
     $SUDO chroot $MNT dpkg -l | grep -q $PKG
     RET=$?
-    [ $RET -ne 0 ] && warn "dpkg -l after install failed"
+    [ $RET -ne 0 ] && warn "dpkg -l after install \"$PKG\" failed"
     return $RET
 }
 
@@ -538,14 +559,23 @@ function install_one() {
 # Any failure here is fatal as it's assumed the new repo needs to be used
 # during the lifetime of this script.
 
+function wgetURL() {
+    local URL
+    URL=$1
+    [[ ! $URL =~ ^http ]] && die "wgetURL $URL does not start with http[s]"
+    [[ $URL =~ https ]] && CERT="--no-check-certificate" || CERT=
+    [[ $URL =~ localhost|127.|$OCTETS123 ]] && PROXY="--no-proxy" || PROXY=
+    log "wget $URL..."
+    debug wget $PROXY $CERT --timeout=10 -O /dev/null $URL
+    [ $? -ne 0 ] && die "Cannot reach $URL"
+}
+
 function apt_add_repository() {
+    local SOURCES URL
     SOURCES="/etc/apt/sources.list.d/$1"
     shift
     URL=`tr ' ' '\n' <<< "$*" | grep '^http'`
-    log "Contacting $URL before updating $SOURCES..."
-    debug wget -O /dev/null $URL
-    [ $? -ne 0 ] && die "Cannot reach $URL"
-
+    wgetURL $URL
     cat << EOSOURCES | quiet $SUDO tee -a $MNT$SOURCES
 # Added by emulation_configure.bash `date`
 
@@ -557,6 +587,7 @@ EOSOURCES
 }
 
 function apt_key_add() {
+    local URL
     URL=$1
     shift
     quiet $SUDO chroot $MNT sh -c "'http_proxy=$http_proxy https_proxy=$https_proxy curl -fsSL $URL | apt-key add -'"
@@ -584,9 +615,10 @@ KUBELET_VERSION="$KUBERNETES_VERSION-00"
 KUBECTL_VERSION="$KUBERNETES_VERSION-00"
 
 function install_Docker_Kubernetes() {
+    local RELEASE
+    RELEASE=stretch
     sep "Installing Docker $DOCKER_VERSION and Kubernetes $KUBERNETES_VERSION"
 
-    RELEASE=stretch
     grep -q $RELEASE $MNT/etc/os-release || die "Docker was expecting $RELEASE"
 
     # apt-transport-https is needed for the repos, curl/gpg for keys, plus dependencies
@@ -622,6 +654,7 @@ function install_Docker_Kubernetes() {
 # it still needs to have grub installed.
 
 function transmogrify_l4fame() {
+    local APTCONF E KV RESOLVdotCONF
     mount_image $TEMPLATEIMG || return 1
     sep "Extending template with L4FAME"
     APTCONF="$MNT/etc/apt/apt.conf.d/00FAME.conf"
@@ -647,15 +680,7 @@ function transmogrify_l4fame() {
     quiet $SUDO tee $MNT$RESOLVdotCONF <<< "nameserver	$TORMSIP" # first
     grep nameserver $RESOLVdotCONF | quiet $SUDO tee -a $MNT$RESOLVdotCONF
 
-    # A repo container on this host should be expressed as localhost.
-
-    if [[ $FAME_L4FAME =~ localhost ]]; then
-	USED_L4FAME=`echo $FAME_L4FAME | sed -e "s/localhost/$TORMSIP/"`
-    else
-	USED_L4FAME=$FAME_L4FAME
-    fi
-
-    apt_add_repository l4fame.list deb \[trusted=yes\] $USED_L4FAME testing main
+    apt_add_repository l4fame.list deb \[trusted=yes\] $FAME_L4FAME testing main
 
     install_one "$FAME_KERNEL"	# Always use quotes.
     [ $? -ne 0 ] && die "Cannot install L4FAME kernel"
@@ -695,6 +720,7 @@ function transmogrify_l4fame() {
 # mount device in the chroot is different.  Just fix it.
 
 function fixup_Docker_grub() {
+    local GRUBCFG UUID
     inHost && return
     GRUBCFG=$MNT/boot/grub/grub.cfg
     mount_image $TEMPLATEIMG || die "Can't mount $TEMPLATEIMG for grub fixup"
@@ -708,6 +734,7 @@ function fixup_Docker_grub() {
 # This takes about six minutes if the mirror is unproxied on a LAN.  YMMV.
 
 function manifest_template_image() {
+    local KEY RET SUFFIX VMD VMCFG VMDVER
     sep Handle VM golden image $TEMPLATEIMG
 
     validate_template_image
@@ -728,7 +755,7 @@ function manifest_template_image() {
     # Use regex to check the current version against different lists.
 
     VMDVER=`vmdebootstrap --version`
-    declare -A VERIFIED
+    local -A VERIFIED
     # --variant
     VERIFIED['A']="0.2 0.5"	
     # --debootstrapopts, use-uefi, systemd-networkd, configure-apt, esp-size
@@ -778,6 +805,7 @@ function manifest_template_image() {
 # Helper for cloning into current image at $MNT
 
 function common_config_files() {
+    local ETCHOSTS FSTAB I RET SUDOER
 
     # One-liners
 
@@ -839,6 +867,7 @@ EOFSTAB
 
 function clone_VMs()
 {
+    local DOTSSH F N2 NEWIMG TARGET TMP
     sep Generating file system images for $NODES virtual machines
     for N2 in `seq -f '%02.0f' $NODES`; do
     	NEWHOST=$HOSTUSERBASE$N2
@@ -910,6 +939,7 @@ EOSSHCONFIG
 # Create virt-manager files
 
 function emit_libvirt_XML() {
+    local CPUMODEXX DOMTYPEXX MACADDRXX N2 NODEXML NODEXX QCOWXX SRCXML
     sep "\nvirsh files nodeXX.xml are in ${ONHOST[FAME_DIR]}"
     for N2 in `seq -f '%02.0f' $NODES`; do
 	NODEXX=$HOSTUSERBASE$N2
