@@ -17,7 +17,7 @@
 
 # Configurator script for the Fabic-Attached Memory Emulation for
 # The Machine from Hewlett Packard Enterprise.
-# See http://github.com/FabricAttachedMemory for more details.
+# See https://github.com/FabricAttachedMemory for more details.
 
 # Set these in your environment to override the following defaults.
 # Note: FAME_DIR was originally TMPDIR, but that variable is suppressed
@@ -46,7 +46,7 @@ export https_proxy=${https_proxy:-}
 
 export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 
-export FAME_L4FAME=${FAME_L4FAME:-http://downloads.linux.hpe.com/repo/l4fame/Debian}
+export FAME_L4FAME=${FAME_L4FAME:-https://downloads.linux.hpe.com/repo/l4fame/Debian}
 
 # A generic kernel metapackage is not created.  As we don't plan to update
 # the kernel much, it's reasonably safe to hardcode this regex.
