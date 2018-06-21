@@ -49,8 +49,12 @@ export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 export FAME_L4FAME=${FAME_L4FAME:-https://downloads.linux.hpe.com/repo/l4fame/Debian}
 
 # A generic kernel metapackage is not created.  As we don't plan to update
-# the kernel much, it's reasonably safe to hardcode this regex.
+# the kernel much, it's reasonably safe to hardcode this regex.  The
+# only other option is to scan the repo, ugh.
 export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.14.0-fame"}
+
+# Experimental.  Don't set it to "yes" unless you know what you're doing.
+export FAME_FAMEZ=${FAME_FAMEZ:-}
 
 ###########################################################################
 # Hardcoded to match content in external config files.  If any of these
@@ -944,6 +948,22 @@ EOSSHCONFIG
 function emit_libvirt_XML() {
     local CPUMODEXX DOMTYPEXX MACADDRXX N2 NODEXML NODEXX QCOWXX SRCXML
     sep "\nvirsh files nodeXX.xml are in ${ONHOST[FAME_DIR]}"
+
+    # The mailbox is implicitly defined and passed by famez_server.py
+    # so its declaration is not needed here (although it can be used).
+    # That keeps the size specification where it belongs.
+    FAMEZ=
+    if [ "$FAME_FAMEZ" ]; then
+    	read -r -d '' FAMEZ << EOFAMEZ
+    <qemu:arg value='-chardev'/>
+    <qemu:arg value='socket,id=FAMEZ,path=/tmp/famez_socket'/>
+    <qemu:arg value='-device'/>
+    <qemu:arg value='ivshmem-doorbell,chardev=FAMEZ,vectors=4'/>
+EOFAMEZ
+	# Now turn linefeeds into two-character backslash-n.  Thanks Google!
+	FAMEZ="${FAMEZ//$'\n'/\\n}"
+    fi
+
     for N2 in `seq -f '%02.0f' $NODES`; do
 	NODEXX=$HOSTUSERBASE$N2
 	# This pattern is recognized by tm-lfs as the implicit node number
@@ -976,6 +996,7 @@ function emit_libvirt_XML() {
 	sed -i -e "s!FAME_VCPUS!$FAME_VCPUS!" $NODEXML
 	sed -i -e "s!FAME_FAM!${ONHOST[FAME_FAM]}!" $NODEXML
 	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $NODEXML
+	sed -i -e "s!FAMEZ!${FAMEZ}!" $NODEXML
     done
     cp templates/node_virsh.sh $FAME_DIR
     log "Change directory to ${ONHOST[FAME_DIR]} and run node_virsh.sh"
