@@ -951,14 +951,17 @@ function emit_libvirt_XML() {
 
     # The mailbox is implicitly defined and passed by famez_server.py
     # so its declaration is not needed here (although it can be used).
-    # That keeps the size specification where it belongs.
+    # That keeps the size specification where it belongs.  Specify the
+    # max number of vectors the FAME-Z server will ever use (64).
+    # Unused vectors hurt nothing.
+
     FAMEZ=
     if [ "$FAME_FAMEZ" ]; then
     	read -r -d '' FAMEZ << EOFAMEZ
     <qemu:arg value='-chardev'/>
     <qemu:arg value='socket,id=FAMEZ,path=/tmp/famez_socket'/>
     <qemu:arg value='-device'/>
-    <qemu:arg value='ivshmem-doorbell,chardev=FAMEZ,vectors=4'/>
+    <qemu:arg value='ivshmem-doorbell,chardev=FAMEZ,vectors=64'/>
 EOFAMEZ
 	# Now turn linefeeds into two-character backslash-n.  Thanks Google!
 	FAMEZ="${FAMEZ//$'\n'/\\n}"
