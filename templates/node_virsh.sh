@@ -9,6 +9,14 @@ DIRECTIVE=${1-}
 set -u
 
 ###########################################################################
+
+function die()
+{
+	echo $* >&2
+	exit 1
+}
+
+###########################################################################
 # If apparmor is loaded/enabled, then per
 # https://libvirt.org/drvqemu.html#securitysvirtaa,
 # libvirtd makes a profile for each domain in /etc/apparmor.d/libvirt-<UUID>.
@@ -59,24 +67,22 @@ EOPROFILE
 
 EXECUTION_DIRECTORY="$( dirname "${BASH_SOURCE[0]}" )"
 cd $EXECUTION_DIRECTORY
-NODESXML=`find ./ -name "node*.xml" -printf "%f\n"`
+NODESXML=`find ./ -name "${FAME_HOSTBASE}[0-3][0-9].xml" -printf "%f\n"`
 NODESDOM=`echo $NODESXML | sed 's/\.xml//g'`
+[ "$FAME_VERBOSE" ] && echo $NODESDOM
+[ "$NODESDOM" ] || die "No $FAME_HOSTBASE artifacts found in $FAME_DIR"
 
 [ `id -u` -ne 0 ] && SUDO="sudo -E" || SUDO=
 VIRSH="$SUDO virsh"
 
-if [[ ! `groups` =~ libvirt-qemu ]]; then
-	echo "You must belong to group libvirt-qemu" >&2
-	exit 1
-fi
-if [[ ! `ls -l $FAME_FAM` =~ libvirt-qemu ]]; then
-	echo "$FAME_FAM must belong to group libvirt-qemu" >&2
-	exit 1
-fi
-if [[ ! `ls -l $FAME_FAM` =~ ^-rw-rw-.* ]]; then
-	echo "$FAME_FAM must be RW by owner and group libvirt-qemu" >&2
-	exit 1
-fi
+[[ `groups` =~ libvirt-qemu ]] || \
+	die "You must belong to group libvirt-qemu"
+
+[[ `ls -l $FAME_FAM` =~ libvirt-qemu ]] || \
+	die "$FAME_FAM must belong to group libvirt-qemu"
+
+[[ `ls -l $FAME_FAM` =~ ^-rw-rw-.* ]] || \
+	die "$FAME_FAM must be RW by owner and group libvirt-qemu"
 
 # Wheres' the beef?
 

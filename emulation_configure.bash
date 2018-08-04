@@ -48,30 +48,30 @@ export FAME_VERBOSE=${FAME_VERBOSE:-}	# Default: mostly quiet; "yes" for more
 
 export FAME_L4FAME=${FAME_L4FAME:-https://downloads.linux.hpe.com/repo/l4fame/Debian}
 
+export FAME_HOSTBASE=${FAME_HOSTBASE:-node}
+
 # A generic kernel metapackage is not created.  As we don't plan to update
 # the kernel much, it's reasonably safe to hardcode this regex.  The
 # only other option is to scan the repo, ugh.
 export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.14.0-fame"}
 
-# Experimental.  Don't set it to "yes" unless you know what you're doing.
+# Optional: set to the AF_UNIX socket of the controlling famez_server.py
 export FAME_FAMEZ=${FAME_FAMEZ:-}
 
 ###########################################################################
 # Hardcoded to match content in external config files.  If any of these
 # is zero length you will probably trash your host OS.  Bullets, gun, feet.
 
-typeset -r HOSTUSERBASE=node
-typeset -r PROJECT=${HOSTUSERBASE}_emulation
-typeset -r NETWORK=${HOSTUSERBASE}_emul		# libvirt name length limits
+typeset -r PROJECT=${FAME_HOSTBASE}_emulation
+typeset -r NETWORK=br_${FAME_HOSTBASE}		# libvirt has name length limits
 typeset -r HPEOUI="48:50:42"
-typeset -r OCTETS123=192.168.42			# see fabric_emul.net.xml
+typeset -r OCTETS123=192.168.42			# see templates/network.xml
 typeset -r TORMSIP=$OCTETS123.254
 typeset -r DOCKER_DIR=/fame_dir			# See Makefile and Docker.md
 
 # Can be reset under Docker so no typeset -r
-junk=`basename $0`
-LOG=$FAME_DIR/${junk%%.*}.log
-TEMPLATEIMG=$FAME_DIR/${HOSTUSERBASE}_template.img
+LOG=$FAME_DIR/${FAME_HOSTBASE}_log		# Yes underscore
+TEMPLATEIMG=$FAME_DIR/${FAME_HOSTBASE}_template.img
 
 export DEBIAN_FRONTEND=noninteractive	# preserved by chroot
 export DEBCONF_NONINTERACTIVE_SEEN=true
@@ -252,6 +252,10 @@ function verify_environment() {
     local CMD LOOPS MISSING MAYBE NEED NEEDS PREV T TEMP
     sep Verifying host environment
 
+    # This goes into the virtual network name which has length limits.
+    # virsh will define a net with a loooong name, but fail on starting it.
+    [ ${#FAME_HOSTBASE} -gt 8 ] && die "FAME_HOSTBASE must be <= 8 chars"
+
     # Close some obvious holes before SUDO
     unset LD_LIBRARY_PATH
     export PATH="/bin:/usr/bin:/sbin:/usr/sbin"
@@ -345,7 +349,8 @@ function verify_environment() {
     	verify_QBH
     fi
 
-    echo_environment export > $FAME_DIR/env.sh	# For next time
+    # For next time
+    echo_environment export > $FAME_DIR/${FAME_HOSTBASE}_env.sh
 
     # NOW, possibly rewrite FAME_L4FAME for use with build/repo containers.
     # Then insure it's reachable, otherwise it won't happen until after
@@ -367,8 +372,10 @@ function libvirt_bridge() {
     inDocker && return 0
     sep Configure libvirt network bridge \"$NETWORK\"
 
-    NETXML=templates/network.xml
-    [ ! -f $NETXML ] && die "Missing local file $NETXML"
+    NETXML=$FAME_DIR/${FAME_HOSTBASE}_network.xml
+    cp templates/network.xml $NETXML
+    sed -i -e "s.NETWORK.$NETWORK." $NETXML
+    sed -i -e "s.HOSTBASE.$FAME_HOSTBASE." $NETXML
 
     # Some installations set up LIBVIRT_DEFAULT, but the virsh man page
     # says LIBVIRT_DEFAULT_URI.  Get the deprecated version, too..
@@ -389,7 +396,7 @@ function libvirt_bridge() {
 	sleep 1
     done
 
-    # virsh will define a net with a loooong name, but fail on starting it.
+    # This also marks it persistent.  Or is it the net-autostart?
     quiet $VIRSH net-define $NETXML
     [ $? -ne 0 ] && die "Cannot define the network $NETWORK:\n`cat $NETXML`"
 
@@ -733,7 +740,7 @@ function fixup_Docker_grub() {
     mount_image $TEMPLATEIMG || die "Can't mount $TEMPLATEIMG for grub fixup"
     UUID=`blkid -o export $MOUNTDEV | grep -E '^UUID='`
     [ "$UUID" ] || die "Cannot recover UUID from $MOUNTDEV"
-    sed -ie "s.root=$MOUNTDEV.root=$UUID." $GRUBCFG
+    sed -i -e "s.root=$MOUNTDEV.root=$UUID." $GRUBCFG
     mount_image
 }
 
@@ -799,7 +806,8 @@ function manifest_template_image() {
 
     validate_template_image || die "Validation of fresh $TEMPLATEIMG failed"
 
-    quiet $SUDO mv -f dpkg.list $FAME_DIR	# "pklist" is hardcoded here
+    # "pklist" is hardcoded here
+    quiet $SUDO mv -f dpkg.list $FAME_DIR/${FAME_HOSTBASE}_dpkg.list
 
     transmogrify_l4fame || die "Addition of L4FAME repo failed"
 
@@ -809,15 +817,14 @@ function manifest_template_image() {
 }
 
 ###########################################################################
-# Helper for cloning into current image at $MNT
+# Helper for cloning into current image at $MNT.  A few one-liners and a
+# few loops.
 
 function common_config_files() {
     local ETCHOSTS FSTAB I RET SUDOER
 
-    # One-liners
-
-    # Yes, the word "NEWHOST", which will be sedited later
-    echo NEWHOST | quiet $SUDO tee $MNT/etc/hostname
+    # Yes, the word "NODEXX", which will be sedited later
+    echo NODEXX | quiet $SUDO tee $MNT/etc/hostname
 
     echo "http_proxy=$FAME_PROXY" | quiet $SUDO tee -a $MNT/etc/environment
 
@@ -831,7 +838,7 @@ function common_config_files() {
 
     quiet $SUDO tee $ETCHOSTS << EOHOSTS
 127.0.0.1	localhost
-127.1.0.1	NEWHOST
+127.1.0.1	NODEXX
 
 # The following lines are desirable for IPv6 capable hosts
 ::1     localhost ip6-localhost ip6-loopback
@@ -845,7 +852,7 @@ EOHOSTS
     # Not really needed with dnsmasq doing DNS but helps when nodes are down
     # as dnsmasq omits them.
     for I in `seq $NODES`; do
-    	echo $OCTETS123.$I "${HOSTUSERBASE}$I" | \
+    	echo $OCTETS123.$I "${FAME_HOSTBASE}$I" | \
 		quiet $SUDO tee -a $ETCHOSTS
     done
 
@@ -870,17 +877,17 @@ EOFSTAB
 }
 
 ###########################################################################
-# Copy, emit, convert: the 8G raw disk will drop to 800M qcow2.
+# Copy, emit, convert: the qcow2 images are 1/10th the size of the template.
 
 function clone_VMs()
 {
-    local DOTSSH F N2 NEWIMG TARGET TMP
+    local DOTSSH F N2 NEWIMG NODEXX QCOW2 TARGET TMP
     sep Generating file system images for $NODES virtual machines
     for N2 in `seq -f '%02.0f' $NODES`; do
-    	NEWHOST=$HOSTUSERBASE$N2
-	QCOW2="$FAME_DIR/$NEWHOST.qcow2"
+    	NODEXX=$FAME_HOSTBASE$N2
+	QCOW2="$FAME_DIR/$NODEXX.qcow2"
 	if [ -f $QCOW2 ]; then
-	    yesno "Re-use $QCOW2"
+	    yesno "Re-use existing $QCOW2"
 	    [ $? -eq 0 ] && log "Keep existing $QCOW2" && continue
 	    $SUDO rm -f $QCOW2
 	else
@@ -890,15 +897,15 @@ function clone_VMs()
 	    Gfree_or_die $TMP "Temp raw image plus new qcow2"
 	fi
 
-	log "Customize $NEWHOST..."
-    	NEWIMG="$FAME_DIR/$NEWHOST.img"
+	log "Customize $NODEXX..."
+    	NEWIMG="$FAME_DIR/$NODEXX.img"
 	quiet cp $TEMPLATEIMG $NEWIMG
+	mount_image $NEWIMG || die "Cannot mount $NEWIMG"
 
 	# Fixup files
-	mount_image $NEWIMG || die "Cannot mount $NEWIMG"
 	for F in etc/hostname etc/hosts; do
 		TARGET=$MNT/$F
-		quiet $SUDO sed -i -e "s/NEWHOST/$NEWHOST/" $TARGET
+		quiet $SUDO sed -i -e "s/NODEXX/$NODEXX/" $TARGET
 	done
 
 	DOTSSH=$MNT/home/$FAME_USER/.ssh
@@ -959,7 +966,7 @@ function emit_libvirt_XML() {
     if [ "$FAME_FAMEZ" ]; then
     	read -r -d '' FAMEZ << EOFAMEZ
     <qemu:arg value='-chardev'/>
-    <qemu:arg value='socket,id=FAMEZ,path=/tmp/famez_socket'/>
+    <qemu:arg value='socket,id=FAMEZ,path=$FAME_FAMEZ'/>
     <qemu:arg value='-device'/>
     <qemu:arg value='ivshmem-doorbell,chardev=FAMEZ,vectors=64'/>
 EOFAMEZ
@@ -968,7 +975,7 @@ EOFAMEZ
     fi
 
     for N2 in `seq -f '%02.0f' $NODES`; do
-	NODEXX=$HOSTUSERBASE$N2
+	NODEXX=$FAME_HOSTBASE$N2
 	# This pattern is recognized by tm-lfs as the implicit node number
 	MACADDRXX="$HPEOUI:${N2}:${N2}:${N2}"
 	NODEXML=$FAME_DIR/$NODEXX.xml
@@ -1001,8 +1008,9 @@ EOFAMEZ
 	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $NODEXML
 	sed -i -e "s!FAMEZ!${FAMEZ}!" $NODEXML
     done
-    cp templates/node_virsh.sh $FAME_DIR
-    log "Change directory to ${ONHOST[FAME_DIR]} and run node_virsh.sh"
+    NODE_VIRSH=${FAME_HOSTBASE}_virsh.sh
+    cp templates/node_virsh.sh $FAME_DIR/$NODE_VIRSH
+    log "Change directory to ${ONHOST[FAME_DIR]} and run $NODE_VIRSH"
     return 0
 }
 
