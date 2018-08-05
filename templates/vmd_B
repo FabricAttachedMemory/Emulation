@@ -32,7 +32,7 @@ distribution = stretch
 # dbus: shutdown is broken without it
 # init: many things are broken with it, specifically auto-networking.
 
-package = aptitude,apt-utils,attr,build-essential,ca-certificates,curl,dbus,gnupg,ifupdown,init,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,nfs-common,pciutils,psmisc,psutils,python3-psutil,ssh,vim,wget,initramfs-tools,kmod,linux-base
+package = aptitude,apt-transport-https,apt-utils,attr,build-essential,ca-certificates,curl,dbus,gnupg,ifupdown,init,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,nfs-common,pciutils,psmisc,psutils,python3-psutil,ssh,vim,wget,initramfs-tools,kmod,linux-base
 custom-package =
 
 # 2017-12: L4FAME exports kernel 4.14y which is later than stretch @ 4.3.
@@ -51,7 +51,7 @@ root-password = iforgot
 lock-root-password = False
 
 customize = 
-hostname = nodeXX
+hostname = NODEXX
 user = try/this
 serial-console = False
 serial-console-command = /sbin/getty -L ttyS0 115200 vt100

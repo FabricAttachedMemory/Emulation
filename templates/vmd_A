@@ -24,7 +24,7 @@ foreign =
 arch = amd64
 distribution = jessie
 
-package = aptitude,apt-utils,attr,build-essential,ca-certificates,curl,gnupg,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,nfs-common,pciutils,psmisc,psutils,python3-psutil,ssh,vim,wget,initramfs-tools,kmod,linux-base
+package = aptitude,apt-transport-https,apt-utils,attr,build-essential,ca-certificates,curl,gnupg,ifupdown,iproute2,iputils-ping,iputils-tracepath,isc-dhcp-client,locales,nfs-common,pciutils,psmisc,psutils,python3-psutil,ssh,vim,wget,initramfs-tools,kmod,linux-base
 custom-package =
 
 # 2017-12: L4FAME exports kernel 4.14y which is later than jessie at 3.10 or stretch @ 4.3.
@@ -40,7 +40,7 @@ root-password = iforgot
 lock-root-password = False
 
 customize = 
-hostname = nodeXX
+hostname = NODEXX
 user = try/this
 serial-console = False
 serial-console-command = /sbin/getty -L ttyS0 115200 vt100
