@@ -968,7 +968,7 @@ function emit_libvirt_XML() {
     <qemu:arg value='-chardev'/>
     <qemu:arg value='socket,id=FAMEZ,path=$FAME_FAMEZ'/>
     <qemu:arg value='-device'/>
-    <qemu:arg value='ivshmem-doorbell,chardev=FAMEZ,vectors=64'/>
+    <qemu:arg value='ivshmem-doorbell,chardev=FAMEZ,vectors=16'/>
 EOFAMEZ
 	# Now turn linefeeds into two-character backslash-n.  Thanks Google!
 	FAMEZ="${FAMEZ//$'\n'/\\n}"
