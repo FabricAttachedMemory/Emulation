@@ -145,6 +145,16 @@ function yesno() {
     done
 }
 
+function ispow2() {
+    [ "$1" -eq 0 ] && return 0		# Explicit 0 is okay
+    local -i T=$1
+    [ $T -eq 0 ] && return 1		# Junk that evals to zero with -i
+    # 512G (2^39) has a log error of 10**-17, so throw away noise.
+    python -c "import math; e=round(math.log($1, 2), 5); exit(not(e == int(e)))"
+    # Shell boolean values are inverse of Python, hence the "not" above.
+    return $?
+}
+
 ###########################################################################
 
 function Gfree_or_die() {
@@ -248,8 +258,11 @@ function echo_environment() {
 
 [ `id -u` -ne 0 ] && SUDO="sudo -E" || SUDO=
 
+declare -i FAME_SIZE_BYTES=0
+FAME_SIZE=0G
+
 function verify_environment() {
-    local CMD LOOPS MISSING MAYBE NEED NEEDS PREV T TEMP
+    local CMD LOOPS MISSING MAYBE NEED NEEDS PREV T TMP
     sep Verifying host environment
 
     # This goes into the virtual network name which has length limits.
@@ -315,20 +328,18 @@ function verify_environment() {
     set -- `head -1 /proc/meminfo`
     [ $2 -lt $TMP ] && warn "Insufficient real RAM for $NODES nodes of $FAME_VDRAM KiB each"
 
-    # Is FAM sized correctly?
-    T=`stat -c %s "$FAME_FAM"`
-    # Shell boolean values are inverse of Python.  512G (2^39) has a log
-    # error of 10**-17, so throw away noise.
-    python -c "import math; e=round(math.log($T, 2), 5); exit(not(e == int(e)))"
-    [ $? -ne 0 ] && die "$FAME_FAM size $T is not a power of 2"
+    # Is FAM sized correctly?  QEMU only eats IVSHMEM with power of 2 size.
+    # This FAME_ variable is NOT exported.
+    FAME_SIZE_BYTES=`stat -c %s "$FAME_FAM"`
+    ispow2 $FAME_SIZE_BYTES || die "$FAME_FAM size is not a power of 2"
 
     # QEMU limit is a function of the (pass-through) host CPU and available
     # memory (about half of true free RAM plus a fudge factor?).  Max size
     # is an ADVISORY because it may work.  This is coupled with a new
     # check in lfs_shadow.py; if the value is too big, IVSHMEM is bad
     # from the guest point of view.
-    let TMP=$T/1024/1024/1024
-    FAME_SIZE=${TMP}G	# NOT exported
+    let TMP=$FAME_SIZE_BYTES/1024/1024/1024
+    FAME_SIZE=${TMP}G		# NOT exported
     log "$FAME_FAM = $FAME_SIZE"
     [ $TMP -lt 1 ] && die "$FAME_FAM size $T is less than 1G"
     [ $TMP -gt 512 ] && warn "$FAME_FAM size $TMP is greater than 512G"
@@ -342,7 +353,7 @@ function verify_environment() {
     if inHost; then
     	VERIFIED_QEMU_VERSIONS="2.6.0 2.8.0 2.8.1"
     	set -- `qemu-system-x86_64 -version`
-    	# Use regex to check the current version against VERIFIED_QEMU_VERSIONS.
+    	# Use regex to check current version against VERIFIED_QEMU_VERSIONS.
     	# See man page for bash, 3.2.4.2 Conditional Constructs.  No quotes.
     	[[ $VERIFIED_QEMU_VERSIONS =~ ${4:0:5} ]] || \
     		die "qemu is not version" ${VERIFIED_QEMU_VERSIONS[*]}
@@ -950,6 +961,51 @@ EOSSHCONFIG
 }
 
 ###########################################################################
+# Create an INI file for the Librarian.  If node count is a power of 2
+# then there's no roundoff error (ie, lost books).
+
+function emit_LFS_INI() {
+    local -i BOOK_SIZE_BYTES BOOK_SIZE_MB BOOKS_PER_NODE TOTAL_BOOKS
+    local -r INIFILE=${ONHOST[FAME_DIR]}/node_fame.ini
+    local EXTRA
+
+    # Start with 8M books, keep total books under 10000
+    let BOOK_SIZE_BYTES=8*1048576
+    let TOTAL_BOOKS=$FAME_SIZE_BYTES/$BOOK_SIZE_BYTES
+    while [ $TOTAL_BOOKS -gt 10000 ]; do
+    	let BOOK_SIZE_BYTES *= 2
+    	let TOTAL_BOOKS=$FAME_SIZE_BYTES/$BOOK_SIZE_BYTES
+    done
+
+    let BOOK_SIZE_MB=$BOOK_SIZE_BYTES/1048576	# unit == MB
+    let BOOKS_PER_NODE=$TOTAL_BOOKS/$NODES	# unit == Books
+
+    if [ ispow2 $FAME_SIZE_BYTES ]; then
+	EXTRA=
+    else
+    	EXTRA='(Not a power of 2 so some NVM may not be usable.)'
+    fi
+
+cat << EOINI > $INIFILE
+# Auto-created `date`
+# Total emulated FAM in $FAME_FAM == $FAME_SIZE
+#       $EXTRA
+# If the Librarian has been installed on your Debian-based system,
+# $ tm-book-register.py -h this.ini | sudo tee /etc/tmconfig
+# $ sudo tm-book-register.py -d /var/hpetm/librarian.db /etc/tmconfig
+# $ sudo systemctl start tm-librarian
+
+[global]
+node_count = $NODES
+book_size_bytes = ${BOOK_SIZE_MB}M
+nvm_size_per_node = ${BOOKS_PER_NODE}B
+EOINI
+
+    sep "\nLibrarian config file in $INIFILE"
+    return 0
+}
+
+###########################################################################
 # Create virt-manager files
 
 function emit_libvirt_XML() {
@@ -1027,7 +1083,10 @@ typeset -ir NODES=$1	# will evaluate to zero if non-integer
 
 set -u
 
-[ "$NODES" -lt 1 -o "$NODES" -gt 40 ] && die "VM count is not in range 1-40"
+[ $NODES -lt 1 -o $NODES -gt 32 ] && die "VM count is not in range 1-32"
+
+# Could lead to rounding error and "loss" of NVM; not fatal.
+ispow2 $NODES || warn "VM count is not a power of 2"
 
 trap "rm -f debootstrap.log; exit 0" TERM QUIT INT HUP EXIT # always empty
 
@@ -1040,6 +1099,8 @@ expose_proxy
 manifest_template_image
 
 clone_VMs
+
+emit_LFS_INI
 
 emit_libvirt_XML
 
