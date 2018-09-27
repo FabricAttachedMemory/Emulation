@@ -17,52 +17,6 @@ function die()
 }
 
 ###########################################################################
-# If apparmor is loaded/enabled, then per
-# https://libvirt.org/drvqemu.html#securitysvirtaa,
-# libvirtd makes a profile for each domain in /etc/apparmor.d/libvirt-<UUID>.
-# This happens when the domain is STARTED.
-# In the definition file, <qemu:commandline> is considered dangerous and
-# emits a "Domain id=XX is tainted: custom-argv" warning in 
-# /var/log/libvirt/qemu/<domain>.log.  However, the FAM backing store file
-# itself is outside the auspices of the AA profile, and the VM startup is 
-# aborted with Permission denied.  There are three options:
-# 1. Remove apparmor.  Dodgy, and maybe not always possible.
-# 2. Reduce the profile to complaint mode instead of enforcement.  Better
-#    but might be considered too lax, plus it needs the apparmor-utils
-#    package.
-# 3. Add the FAM file directly to the profile for the VM.  We have a winner!
-# Chicken-and-egg: the profile is not generated until the START of the
-# domain.  The TEMPLATE.qemu file seems like a logical place to do it
-# until too many FAM files get stuffed in there...but it's cleaner than
-# one false start and modifying the per-domain files.
-
-
-function apparmor_fixup() {
-	$SUDO aa-status >/dev/null 2>&1
-	if [ $? -eq 0 ]; then
-		TEMPLATE=/etc/apparmor.d/libvirt/TEMPLATE.qemu
-		ORIG=$TEMPLATE.orig
-		[ ! -f $ORIG ] && $SUDO cp $TEMPLATE $ORIG
-		cat <<EOPROFILE | sudo tee $TEMPLATE >/dev/null
-#
-# This profile is for the domain whose UUID matches this file.
-# It's from a template modified for FAME:
-# https://github.com/FabricAttachedMemory/Emulation
-#
-
-#include <tunables/global>
-
-profile LIBVIRT_TEMPLATE {
-  #include <abstractions/libvirt-qemu>
-  "$FAME_FAM" rw,
-}
-EOPROFILE
-
-	fi
-	return 0
-}
-
-###########################################################################
 # MAIN.  Set a few globals, then check group membership.
 
 EXECUTION_DIRECTORY="$( dirname "${BASH_SOURCE[0]}" )"
@@ -99,7 +53,6 @@ destroy)
 	;;
 
 start)
-	apparmor_fixup
 	for DOM in $NODESDOM; do
 		$VIRSH start $DOM
 	done

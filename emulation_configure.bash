@@ -351,7 +351,7 @@ function verify_environment() {
 
     # verified working QEMU versions, checked only to "three digits"
     if inHost; then
-    	VERIFIED_QEMU_VERSIONS="2.6.0 2.8.0 2.8.1"
+    	VERIFIED_QEMU_VERSIONS="2.6.0 2.8.0 2.8.1 2.11.1"
     	set -- `qemu-system-x86_64 -version`
     	# Use regex to check current version against VERIFIED_QEMU_VERSIONS.
     	# See man page for bash, 3.2.4.2 Conditional Constructs.  No quotes.
@@ -728,7 +728,7 @@ function transmogrify_l4fame() {
     	install_one $E || warn "Install of $E failed"
     done
 
-    install_Docker_Kubernetes
+    # install_Docker_Kubernetes		# Eats CPU, no one is using it
 
     mount_image
 
@@ -980,7 +980,7 @@ function emit_LFS_INI() {
     let BOOK_SIZE_MB=$BOOK_SIZE_BYTES/1048576	# unit == MB
     let BOOKS_PER_NODE=$TOTAL_BOOKS/$NODES	# unit == Books
 
-    if [ ispow2 $FAME_SIZE_BYTES ]; then
+    if ispow2 $FAME_SIZE_BYTES; then
 	EXTRA=
     else
     	EXTRA='(Not a power of 2 so some NVM may not be usable.)'
@@ -1002,6 +1002,80 @@ nvm_size_per_node = ${BOOKS_PER_NODE}B
 EOINI
 
     sep "\nLibrarian config file in $INIFILE"
+    return 0
+}
+
+###########################################################################
+# If apparmor is loaded/enabled, then per
+# https://libvirt.org/drvqemu.html#securitysvirtaa,
+# libvirtd makes a profile for each domain in /etc/apparmor.d/libvirt-<UUID>.
+# This happens when the domain is STARTED.  It is driven from the template
+# found in /etc/apparmor.d/libvirt/TEMPLATE.qemu.
+# In the definition file, <qemu:commandline> is considered dangerous and
+# emits a "Domain id=XX is tainted: custom-argv" warning in 
+# /var/log/libvirt/qemu/<domain>.log.  However, the FAM backing store file
+# itself is outside the auspices of the AA profile, and the VM startup is 
+# aborted with Permission denied.  There are three options:
+# 1. Remove apparmor.  Dodgy, and maybe not always possible.
+# 2. Reduce the profile to complaint mode instead of enforcement.  Better but
+#    might be considered too lax, plus it needs the apparmor-utils package.
+# 3. Add the FAM file directly to the profile for the VM.  We have a winner!
+#    Adjust the template file, actually.
+
+# Linux Mint 19 has a larger abstractions/libvirt-qemu which precludes the
+# use of any file in /tmp or /var/tmp.  This is a common place for people to
+# put the IVSHMSG socket for FAME-Z so try to warn them.  "deny" seems to
+# be forever, ie, it can't be counteracted by a subsequent "allow".
+
+function fixup_apparmor() {
+    local BASEARMOR FAM_STANZA FAMEZ_STANZA FMT
+    quiet $SUDO aa-enabled
+    [ $? -ne 0 ] && return 0	# Either not installed or not enabled
+
+    # Each one is optional, they probably aren't both empty...
+    [ ! "$FAME_FAM" -a ! "$FAME_FAMEZ" ] && return 0
+
+    sep "Fixing up apparmor"
+
+    # Idiot checks: you cannot undo a "deny" and Linux Mint 19 does it.
+    # Yes, FAME_FAM could be there too but it's highly unlikely.
+
+    BASEARMOR=/etc/apparmor.d/abstractions/libvirt-qemu
+    FMT="apparmor denies use of %s by libvirt (FAME_FAMEZ=$FAME_FAMEZ)"
+    if [ "$FAME_FAMEZ" ]; then
+	egrep 'deny\s+/tmp/' $BASEARMOR >/dev/null 2>&1
+	[ $? -eq 0 -a "${FAME_FAMEZ:0:5}" = /tmp/ ] && \
+    	    die `printf "$FMT" /tmp`
+	egrep 'deny\s+/var/tmp/' $BASEARMOR >/dev/null 2>&1
+	[ $? -eq 0 -a "${FAME_FAMEZ:0:5}" = /var/ ] && \
+    	    die `printf "$FMT" /var/tmp`
+    fi
+
+    # Execute
+    FAM_STANZA=
+    FAMEZ_STANZA=
+    [ "$FAME_FAM" ] && FAM_STANZA="\"$FAME_FAM\" rw,"
+    [ "$FAME_FAMEZ" ] && FAMEZ_STANZA="\"$FAME_FAMEZ\" rw,"
+
+    TEMPLATE=/etc/apparmor.d/libvirt/TEMPLATE.qemu
+    SAVED=$TEMPLATE.original
+    [ ! -f $SAVED ] && $SUDO cp $TEMPLATE $SAVED
+    cat <<EOPROFILE | sudo tee $TEMPLATE >/dev/null
+#
+# This profile is for the domain whose UUID matches this file.
+# It's from a template modified for FAME:
+# https://github.com/FabricAttachedMemory/Emulation
+#
+
+#include <tunables/global>
+
+profile LIBVIRT_TEMPLATE {
+  #include <abstractions/libvirt-qemu>
+  $FAM_STANZA
+  $FAMEZ_STANZA
+}
+EOPROFILE
+
     return 0
 }
 
@@ -1091,6 +1165,8 @@ ispow2 $NODES || warn "VM count is not a power of 2"
 trap "rm -f debootstrap.log; exit 0" TERM QUIT INT HUP EXIT # always empty
 
 verify_environment
+
+fixup_apparmor
 
 libvirt_bridge
 
