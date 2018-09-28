@@ -266,7 +266,7 @@ function verify_environment() {
     sep Verifying host environment
 
     # This goes into the virtual network name which has length limits.
-    # virsh will define a net with a loooong name, but fail on starting it.
+    # virsh will define a net with a loooong name but fail on starting it.
     [ ${#FAME_HOSTBASE} -gt 8 ] && die "FAME_HOSTBASE must be <= 8 chars"
 
     # Close some obvious holes before SUDO
@@ -286,18 +286,15 @@ function verify_environment() {
     [ $? -eq 0 ] || die "Cannot start $LOG"
 
     NEEDS=
-    for V in FAME_DIR FAME_FAM; do
+    for V in FAME_DIR; do	# All others are optional or defaulted
 	[ "${!V}" ] || NEEDS="$NEEDS $V"
     done
-    [ "$NEEDS" ] && die "Set and export variable(s) $NEEDS"
+    [ "$NEEDS" ] && die "Set and export $NEEDS"
 
     fixup_Docker_environment	# May change a few working variables
 
     [ -d "$FAME_DIR" ] || die "$FAME_DIR does not exist"
     [ -w "$FAME_DIR" ] || die "$FAME_DIR is not writeable"
-    [ "${ONHOST[FAME_FAM]}" ] || die "FAME_FAM variable must be specified"
-    [ -f "$FAME_FAM" ] || die "$FAME_FAM does not exist"
-    [ -w "$FAME_FAM" ] || die "$FAME_FAM is not writeable"
 
     # Another user submitted errata which may include
     # bison dh-autoreconf flex gtk2-dev libglib2.0-dev livbirt-bin zlib1g-dev
@@ -328,21 +325,38 @@ function verify_environment() {
     set -- `head -1 /proc/meminfo`
     [ $2 -lt $TMP ] && warn "Insufficient real RAM for $NODES nodes of $FAME_VDRAM KiB each"
 
-    # Is FAM sized correctly?  QEMU only eats IVSHMEM with power of 2 size.
-    # This FAME_ variable is NOT exported.
-    FAME_SIZE_BYTES=`stat -c %s "$FAME_FAM"`
-    ispow2 $FAME_SIZE_BYTES || die "$FAME_FAM size is not a power of 2"
+    # It's no longer necessary to have FAM IFF this is for FAME-Z.
+    # [ "${ONHOST[FAME_FAM]}" ] || die "FAME_FAM variable must be specified"
 
-    # QEMU limit is a function of the (pass-through) host CPU and available
-    # memory (about half of true free RAM plus a fudge factor?).  Max size
-    # is an ADVISORY because it may work.  This is coupled with a new
-    # check in lfs_shadow.py; if the value is too big, IVSHMEM is bad
-    # from the guest point of view.
-    let TMP=$FAME_SIZE_BYTES/1024/1024/1024
-    FAME_SIZE=${TMP}G		# NOT exported
-    log "$FAME_FAM = $FAME_SIZE"
-    [ $TMP -lt 1 ] && die "$FAME_FAM size $T is less than 1G"
-    [ $TMP -gt 512 ] && warn "$FAME_FAM size $TMP is greater than 512G"
+    if [ ! "$FAME_FAM" ]; then
+    	[ "$FAME_FAMEZ" ] || \
+    		die 'At least one of FAME_FAM / FAME_FAMEZ must be set'
+    else
+	[ -f "$FAME_FAM" ] || die "$FAME_FAM does not exist"
+	[ -w "$FAME_FAM" ] || die "$FAME_FAM is not writeable"
+	[[ `ls -l $FAME_FAM` =~ libvirt-qemu ]] || \
+		die "$FAME_FAM must belong to group libvirt-qemu"
+	[[ `ls -l $FAME_FAM` =~ ^-rw-rw-.* ]] || \
+		die "$FAME_FAM must be RW by owner and group libvirt-qemu"
+
+	# Is FAM sized correctly?  QEMU only eats IVSHMEM with power of 2 size.
+	# This FAME_ variable is NOT exported.
+
+	FAME_SIZE_BYTES=`stat -c %s "$FAME_FAM"`
+	ispow2 $FAME_SIZE_BYTES || die "$FAME_FAM size is not a power of 2"
+
+	# QEMU limit is a function of the pass-through host CPU and available
+	# memory (about half of true free RAM plus a small fudge factor).
+	# Max size is an ADVISORY because it may work.  This is coupled with
+	# a new check in lfs_shadow.py; if the value is too big, IVSHMEM is
+	# bad from the guest point of view.
+
+	let TMP=$FAME_SIZE_BYTES/1024/1024/1024
+	FAME_SIZE=${TMP}G		# NOT exported
+	log "$FAME_FAM = $FAME_SIZE"
+	[ $TMP -lt 1 ] && die "$FAME_FAM size $T is less than 1G"
+	[ $TMP -gt 512 ] && warn "$FAME_FAM size $TMP is greater than 512G"
+    fi
 
     # This needs to become smarter, looking for stale kpartx devices
     LOOPS=`$SUDO losetup -al | grep devicemapper | grep -v docker | wc -l`
@@ -969,6 +983,8 @@ function emit_LFS_INI() {
     local -r INIFILE=${ONHOST[FAME_DIR]}/node_fame.ini
     local EXTRA
 
+    [ ! "$FAME_FAM" ] && return 0
+
     # Start with 8M books, keep total books under 10000
     let BOOK_SIZE_BYTES=8*1048576
     let TOTAL_BOOKS=$FAME_SIZE_BYTES/$BOOK_SIZE_BYTES
@@ -1036,12 +1052,13 @@ function fixup_apparmor() {
 
     sep "Fixing up apparmor"
 
-    # Idiot checks: you cannot undo a "deny" and Linux Mint 19 does it.
+    # Idiot checks: you cannot undo apparmor "deny" and Linux Mint 19 uses it.
     # Yes, FAME_FAM could be there too but it's highly unlikely.
 
     BASEARMOR=/etc/apparmor.d/abstractions/libvirt-qemu
     FMT="apparmor denies use of %s by libvirt (FAME_FAMEZ=$FAME_FAMEZ)"
     if [ "$FAME_FAMEZ" ]; then
+	# Superfluous now but I might not be done with it...
 	egrep 'deny\s+/tmp/' $BASEARMOR >/dev/null 2>&1
 	[ $? -eq 0 -a "${FAME_FAMEZ:0:5}" = /tmp/ ] && \
     	    die `printf "$FMT" /tmp`
@@ -1083,24 +1100,39 @@ EOPROFILE
 
 function emit_libvirt_XML() {
     local CPUMODEXX DOMTYPEXX MACADDRXX N2 NODEXML NODEXX QCOWXX SRCXML
+    local FAME_IVSHMEM FAMEZ_IVSHMSG
     sep "\nvirsh files nodeXX.xml are in ${ONHOST[FAME_DIR]}"
 
     # The mailbox is implicitly defined and passed by famez_server.py
     # so its declaration is not needed here (although it can be used).
     # That keeps the size specification where it belongs.  Specify the
-    # max number of vectors the FAME-Z server will ever use (64).
-    # Unused vectors hurt nothing.
+    # max number of vectors the FAME-Z server will ever use (16).
+    # Keeping it smaller means less likelihood of running out, although
+    # that's probably paranoid.
 
-    FAMEZ=
-    if [ "$FAME_FAMEZ" ]; then
-    	read -r -d '' FAMEZ << EOFAMEZ
+    FAME_IVSHMEM=
+    if [ "$FAME_FAM" ]; then
+    	read -r -d '' FAME_IVSHMEM << EOIVSHMEM
+    <qemu:arg value='-object'/>
+    <qemu:arg value='memory-backend-file,mem-path=${ONHOST[FAME_FAM]},size=$FAME_SIZE,id=FAM,share=on'/>
+    <qemu:arg value='-device'/>
+    <qemu:arg value='ivshmem-plain,memdev=FAM'/>
+EOIVSHMEM
+	# Now turn linefeeds into two-character backslash-n.  Thanks Google!
+	FAME_IVSHMEM="${FAME_IVSHMEM//$'\n'/\\n}"
+    fi
+
+    FAMEZ_IVSHMSG=
+    if [ "$FAME_FAMEZ" ]; then		# Yes, true, 1, whatever
+	FAME_FAMEZ="$FAME_DIR/famez_socket"
+    	read -r -d '' FAMEZ_IVSHMSG << EOIVSHMSG
     <qemu:arg value='-chardev'/>
     <qemu:arg value='socket,id=FAMEZ,path=$FAME_FAMEZ'/>
     <qemu:arg value='-device'/>
     <qemu:arg value='ivshmem-doorbell,chardev=FAMEZ,vectors=16'/>
-EOFAMEZ
+EOIVSHMSG
 	# Now turn linefeeds into two-character backslash-n.  Thanks Google!
-	FAMEZ="${FAMEZ//$'\n'/\\n}"
+	FAMEZ_IVSHMSG="${FAMEZ_IVSHMSG//$'\n'/\\n}"
     fi
 
     for N2 in `seq -f '%02.0f' $NODES`; do
@@ -1134,9 +1166,12 @@ EOFAMEZ
 	sed -i -e "s!NETWORK!$NETWORK!" $NODEXML
 	sed -i -e "s!FAME_VDRAM!$FAME_VDRAM!" $NODEXML
 	sed -i -e "s!FAME_VCPUS!$FAME_VCPUS!" $NODEXML
-	sed -i -e "s!FAME_FAM!${ONHOST[FAME_FAM]}!" $NODEXML
-	sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $NODEXML
-	sed -i -e "s!FAMEZ!${FAMEZ}!" $NODEXML
+
+	# sed -i -e "s!FAME_FAM!${ONHOST[FAME_FAM]}!" $NODEXML
+	# sed -i -e "s!FAME_SIZE!$FAME_SIZE!" $NODEXML
+
+	sed -i -e "s!FAME_IVSHMEM!${FAME_IVSHMEM}!" $NODEXML
+	sed -i -e "s!FAMEZ_IVSHMSG!${FAMEZ_IVSHMSG}!" $NODEXML
     done
     NODE_VIRSH=${FAME_HOSTBASE}_virsh.sh
     cp templates/node_virsh.sh $FAME_DIR/$NODE_VIRSH

@@ -71,7 +71,6 @@
       <target type='virtio' name='com.redhat.spice.0'/>
       <address type='virtio-serial' controller='0' bus='0' port='1'/>
     </channel>
-    <input type='tablet' bus='usb'/>
     <input type='mouse' bus='ps2'/>
     <input type='keyboard' bus='ps2'/>
     <graphics type='vnc' autoport='yes'/>
@@ -95,11 +94,11 @@
     </memballoon>
   </devices>
   <qemu:commandline>
-    <qemu:arg value='-object'/>
-    <qemu:arg value='memory-backend-file,mem-path=FAME_FAM,size=FAME_SIZE,id=FAM,share=on'/>
-    <qemu:arg value='-device'/>
-    <qemu:arg value='ivshmem-plain,memdev=FAM'/>
-    FAMEZ
+
+    FAME_IVSHMEM
+
+    FAMEZ_IVSHMSG
+
   </qemu:commandline>
 </domain>
 

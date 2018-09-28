@@ -102,11 +102,11 @@
     </memballoon>
   </devices>
   <qemu:commandline>
-    <qemu:arg value='-object'/>
-    <qemu:arg value='memory-backend-file,mem-path=FAME_FAM,size=FAME_SIZE,id=FAM,share=on'/>
-    <qemu:arg value='-device'/>
-    <qemu:arg value='ivshmem-plain,memdev=FAM'/>
-    FAMEZ
+
+    FAME_IVSHMEM
+
+    FAMEZ_IVSHMSG
+
   </qemu:commandline>
 </domain>
 
