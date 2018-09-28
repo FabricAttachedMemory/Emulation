@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2015-2017 Hewlett Packard Enterprise Development LP
+# Copyright 2015-2018 Hewlett Packard Enterprise Development LP
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License, version 2  as
@@ -990,10 +990,9 @@ cat << EOINI > $INIFILE
 # Auto-created `date`
 # Total emulated FAM in $FAME_FAM == $FAME_SIZE
 #       $EXTRA
-# If the Librarian has been installed on your Debian-based system,
-# $ tm-book-register.py -h this.ini | sudo tee /etc/tmconfig
-# $ sudo tm-book-register.py -d /var/hpetm/librarian.db /etc/tmconfig
-# $ sudo systemctl start tm-librarian
+# $ sudo mkdir -p /var/hpetm
+# $ sudo BOOK_REGISTER -d /var/hpetm/librarian.db $INIFILE
+# BOOK_REGISTER is either tm-book-register or book_register.py, see the docs
 
 [global]
 node_count = $NODES
