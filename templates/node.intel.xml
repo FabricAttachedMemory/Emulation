@@ -3,18 +3,19 @@
   <resource>
     <partition>/machine</partition>
   </resource>
+  <memory unit='KiB'>FAME_VDRAM</memory>
+  <currentMemory unit='KiB'>FAME_VDRAM</currentMemory>
+  <vcpu placement='static'>FAME_VCPUS</vcpu>
   <os>
     <type arch='x86_64' machine='pc-i440fx-2.6'>hvm</type>
     <boot dev='hd'/>
   </os>
-
+  <features>
+    <acpi/>
+    <apic/>
+  </features>
   <cpu mode='CPUMODEXX'>
   </cpu>
-  <vcpu placement='static'>FAME_VCPUS</vcpu>
-
-  <memory unit='KiB'>FAME_VDRAM</memory>
-  <currentMemory unit='KiB'>FAME_VDRAM</currentMemory>
-
   <clock offset='utc'>
     <timer name='rtc' tickpolicy='catchup'/>
     <timer name='pit' tickpolicy='delay'/>
