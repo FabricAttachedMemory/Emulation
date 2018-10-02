@@ -63,7 +63,14 @@ Librarian can use it.
 
 ### Obtaining the Librarian
 
-#### Debian installation
+There are several ways to obtain the Librarian suite.  Each method delivers
+a different path to critical programs to be run on the VM host.  For
+later reference they will be referred to as
+
+* BOOK_REGISTER - used to create the Librarian database
+* LIBRARIAN - the metadata server for LFS
+
+#### Debian installation of LFS suite
 
 If your host system is Debian-based (Debian, Ubuntu, Mint) and of sufficient
 freshness, you can grab .deb package files and install them.
@@ -85,10 +92,12 @@ After installation there will be several programs in /usr/bin on your VM host:
 * tm-lmp - "Librarian Monitoring Protocol", a ReST API for status
 * fsck_lfs - Clean up the Librarian database
 
-These are symbolic links to the installed code, their use will be discussed
-in turn.
+In this case,
 
-#### Run from source
+* "<strong>BOOK_REGISTER</strong>" is /usr/bin/tm-book-register
+* "<strong>LIBRARIAN</strong>" is /usr/bin/tm-librarian
+
+#### Run from cloned repo of LFS suite
 
 [Clone or download a source tarball of the Librarian from Github](https://github.com/FabricAttachedMemory/tm-librarian.git).  cd to the "src"
 directory and you will find the same programs which can be run from "src":
@@ -98,17 +107,50 @@ directory and you will find the same programs which can be run from "src":
 * lmp.py - "Librarian Monitoring Protocol", a ReST API for status
 * fsck_lfs.py - Clean up the Librarian database
 
+In this case,
+
+* "<strong>BOOK_REGISTER</strong>" is /path/to/cloned/repo/src/book_register.py
+* "<strong>LIBRARIAN</strong>" is /path/to/cloned/repo/src/librarian.py
+
 ### Creating the INI file
 
-The INI file can be quite expressive with many parameters that are all
-needed in an instance of The Machine.  The FAME environment is much more 
-forgiving and can use a highly abbreviated form.  In fact
-the primary script of the current project repo will create an INI file for you.
+The BOOK_REGISTER program creates the Librarian database file from an INI file.
+The FAME environment can use a highly abbreviated form of the INI syntax.
+In fact the primary script of the current project repo will create an INI file
+for you.
 
 [emulation_configure.bash](https://github.com/FabricAttachedMemory/Emulation/blob/master/emulation_configure.bash)
 will create the file "$FAME_DIR/node_fame.ini" which can be used as-is.  Its
-values are based on the size of $FAME_FAM and the number of nodes.  All
-values must be a power of two.  For example, the INI file in FAME for a
-FAM of 32G and four nodes would be:
+values are based on the size of $FAME_FAM, the number of nodes, and the
+book size (default = 8M).  All values should be a power of two.  For example,
+the INI file in FAME for a FAM of 32G and four nodes would be:
 
-(more to come...)
+```
+[global]
+node_count = 4
+book_size_bytes = 8M
+nvm_size_per_node = 1024B
+```
+
+The unit for nvm_size_per_node is "books", thus 1024 8-megabyte books on
+each of four nodes equals 32G.  The full INI format is much richer than
+for real hardware but this compact form is usually sufficient for FAME.
+
+### Create the Librarian database from the INI file
+
+The default location for the database is in ```/var/hpetm/librarian.db``` so 
+
+1. ```sudo mkdir -p /var/hpetm```
+1. ```BOOK_REGISTER -d /var/hpetm/librarian.db file.ini```
+
+### Run the Librarian
+
+Once the database file is in the standard location,
+
+```sudo LIBRARIAN --verbose 2```
+
+If you've installed the Debian package on your system,
+
+```sudo systemctl start tm-librarian```
+
+When the node VMs are started they should automatically connect.
