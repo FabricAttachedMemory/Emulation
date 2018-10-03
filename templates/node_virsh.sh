@@ -4,7 +4,7 @@
 
 DIRECTIVE=${1-}
 
-[ -z "$FAME_FAM" -o ! -f "$FAME_FAM" ] && echo 'Missing $FAME_FAM' >&2 && exit 1
+[ "$FAME_FAM" -a ! -f "$FAME_FAM" ] && echo 'Missing $FAME_FAM' >&2 && exit 1
 
 set -u
 
@@ -32,13 +32,15 @@ VIRSH="$SUDO virsh"
 [[ `groups` =~ libvirt-qemu ]] || \
 	die "You must belong to group libvirt-qemu"
 
-[[ `ls -l $FAME_FAM` =~ libvirt-qemu ]] || \
-	die "$FAME_FAM must belong to group libvirt-qemu"
+if [ "$FAME_FAM" ]; then
+	[[ `ls -l $FAME_FAM` =~ libvirt-qemu ]] || \
+		die "$FAME_FAM must belong to group libvirt-qemu"
 
-[[ `ls -l $FAME_FAM` =~ ^-rw-rw-.* ]] || \
-	die "$FAME_FAM must be RW by owner and group libvirt-qemu"
+	[[ `ls -l $FAME_FAM` =~ ^-rw-rw-.* ]] || \
+		die "$FAME_FAM must be RW by owner and group libvirt-qemu"
+fi
 
-# Wheres' the beef?
+# Where's the beef?
 
 case "$DIRECTIVE" in
 
@@ -67,7 +69,7 @@ status)
 stop|shutdown)	# Get id_rsa.nophrase as your identity file
 	N=1
 	for NODE in $NODESDOM; do
-		IP="192.168.42.$N"
+		IP="OCTETS123.$N"
 		echo -n "$NODE ($IP): "
 		ssh l4mdc@$IP sudo shutdown -h 0
 		let N+=1

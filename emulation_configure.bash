@@ -50,12 +50,15 @@ export FAME_L4FAME=${FAME_L4FAME:-https://downloads.linux.hpe.com/repo/l4fame/De
 
 export FAME_HOSTBASE=${FAME_HOSTBASE:-node}
 
+export FAME_OCTETS123=${FAME_OCTETS123:-192.168.42}
+
 # A generic kernel metapackage is not created.  As we don't plan to update
 # the kernel much, it's reasonably safe to hardcode this regex.  The
 # only other option is to scan the repo, ugh.
 export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.14.0-fame"}
 
-# Optional: set to the AF_UNIX socket of the controlling famez_server.py
+# Set to non-null (yes|true|1|whatever) to emit FAME-Z configuration.
+# It gets reset early to a good location for the AF_UNIX socket.
 export FAME_FAMEZ=${FAME_FAMEZ:-}
 
 ###########################################################################
@@ -65,8 +68,7 @@ export FAME_FAMEZ=${FAME_FAMEZ:-}
 typeset -r PROJECT=${FAME_HOSTBASE}_emulation
 typeset -r NETWORK=br_${FAME_HOSTBASE}		# libvirt has name length limits
 typeset -r HPEOUI="48:50:42"
-typeset -r OCTETS123=192.168.42			# see templates/network.xml
-typeset -r TORMSIP=$OCTETS123.254
+typeset -r TORMSIP=$FAME_OCTETS123.254
 typeset -r DOCKER_DIR=/fame_dir			# See Makefile and Docker.md
 
 # Can be reset under Docker so no typeset -r
@@ -374,9 +376,6 @@ function verify_environment() {
     	verify_QBH
     fi
 
-    # For next time
-    echo_environment export > $FAME_DIR/${FAME_HOSTBASE}_env.sh
-
     # NOW, possibly rewrite FAME_L4FAME for use with build/repo containers.
     # Then insure it's reachable, otherwise it won't happen until after
     # the vmdebootstrap.
@@ -401,6 +400,7 @@ function libvirt_bridge() {
     cp templates/network.xml $NETXML
     sed -i -e "s.NETWORK.$NETWORK." $NETXML
     sed -i -e "s.HOSTBASE.$FAME_HOSTBASE." $NETXML
+    sed -i -e "s/OCTETS123/$FAME_OCTETS123/" $NETXML
 
     # Some installations set up LIBVIRT_DEFAULT, but the virsh man page
     # says LIBVIRT_DEFAULT_URI.  Get the deprecated version, too..
@@ -600,7 +600,7 @@ function wgetURL() {
     URL=$1
     [[ ! $URL =~ ^http ]] && die "wgetURL $URL does not start with http[s]"
     [[ $URL =~ https ]] && CERT="--no-check-certificate" || CERT=
-    [[ $URL =~ localhost|127.|$OCTETS123 ]] && PROXY="--no-proxy" || PROXY=
+    [[ $URL =~ localhost|127.|$FAME_OCTETS123 ]] && PROXY="--no-proxy" || PROXY=
     log "wget $URL..."
     debug wget $PROXY $CERT --timeout=10 -O /dev/null $URL
     [ $? -ne 0 ] && die "Cannot reach $URL"
@@ -877,7 +877,7 @@ EOHOSTS
     # Not really needed with dnsmasq doing DNS but helps when nodes are down
     # as dnsmasq omits them.
     for I in `seq $NODES`; do
-    	echo $OCTETS123.$I "${FAME_HOSTBASE}$I" | \
+    	echo $FAME_OCTETS123.$I "${FAME_HOSTBASE}$I" | \
 		quiet $SUDO tee -a $ETCHOSTS
     done
 
@@ -1101,7 +1101,7 @@ EOPROFILE
 function emit_libvirt_XML() {
     local CPUMODEXX DOMTYPEXX MACADDRXX N2 NODEXML NODEXX QCOWXX SRCXML
     local FAME_IVSHMEM FAMEZ_IVSHMSG
-    sep "\nvirsh files nodeXX.xml are in ${ONHOST[FAME_DIR]}"
+    sep "Creating libvirt XML files and helper script"
 
     # The mailbox is implicitly defined and passed by famez_server.py
     # so its declaration is not needed here (although it can be used).
@@ -1124,7 +1124,7 @@ EOIVSHMEM
 
     FAMEZ_IVSHMSG=
     if [ "$FAME_FAMEZ" ]; then		# Yes, true, 1, whatever
-	FAME_FAMEZ="$FAME_DIR/famez_socket"
+	FAME_FAMEZ="$FAME_DIR/${FAME_HOSTBASE}_socket"
     	read -r -d '' FAMEZ_IVSHMSG << EOIVSHMSG
     <qemu:arg value='-chardev'/>
     <qemu:arg value='socket,id=FAMEZ,path=$FAME_FAMEZ'/>
@@ -1173,9 +1173,16 @@ EOIVSHMSG
 	sed -i -e "s!FAME_IVSHMEM!${FAME_IVSHMEM}!" $NODEXML
 	sed -i -e "s!FAMEZ_IVSHMSG!${FAMEZ_IVSHMSG}!" $NODEXML
     done
+
     NODE_VIRSH=${FAME_HOSTBASE}_virsh.sh
-    cp templates/node_virsh.sh $FAME_DIR/$NODE_VIRSH
-    log "Change directory to ${ONHOST[FAME_DIR]} and run $NODE_VIRSH"
+    echo "virsh files ${FAME_HOSTBASE}XX.xml are in ${ONHOST[FAME_DIR]}"
+    echo "Change directory to ${ONHOST[FAME_DIR]} and run $NODE_VIRSH"
+
+    NODE_VIRSH=${ONHOST[FAME_DIR]}/$NODE_VIRSH
+    cp templates/node_virsh.sh $NODE_VIRSH
+    sed -i -e "s/OCTETS123/$FAME_OCTETS123/" $NODE_VIRSH
+    sed -i -e "s/USER/$FAME_USER/" $NODE_VIRSH
+
     return 0
 }
 
@@ -1213,5 +1220,8 @@ clone_VMs
 emit_LFS_INI
 
 emit_libvirt_XML
+
+# After all transformatons are finished, save it for next time.
+echo_environment export > $FAME_DIR/${FAME_HOSTBASE}_env.sh
 
 exit 0
