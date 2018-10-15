@@ -1,134 +1,84 @@
 # Emulation of Fabric-Attached Memory for The Machine
 
-Experience the developer environment of next year's hardware _today_.  The Machine from Hewlett Packard Enterprise offers a new paradigm in memory-centric computing.  While the prototype hardware announced in 2016 will not be generally available, you can experiment with Fabric-Attached Memory (FAM) right now.
+Experience the developer environment of tomorrow's hardware _today_.  The Machine from Hewlett Packard Enterprise offers a new paradigm in memory-centric computing.  While the prototype hardware announced in 2016 will not be generally available, you can experiment with Fabric-Attached Memory (FAM) right now.
 
 ## Description
 
 The Machine is a homogenous node-based cluster of SoCs running Linux with standard direct-attached DRAM.  All nodes also provide a range of memory attached to a foreign fabric (actually a Gen-Z precursor).   All segments of FAM are connected together and all of FAM is visible to all nodes in a shared fashion.  These statements should make much more sense after [reading the background material on the wiki.](https://github.com/FabricAttachedMemory/Emulation/wiki)
 
-The shared global address space is manipulated on each node via the Linux filesystem API.  A new file system, the Librarian Filesystem Suite (LFS), allows familiar operations (open/create/allocate/delete) to request chunks of FAM.  Finally, the file can be memory-mapped via mmap(2) and deliver load-store operations directly to FAM without the OS or another API.  This is the promise of Memory-Driven Computing.  A daemon on each node communicates with a single server process to realize a global, distributed file system across nodes of The Machine.
+The shared global address space is manipulated from each node via the Linux filesystem API.  A new file system, the Librarian Filesystem Suite (LFS), allows familiar operations (open/create/allocate/delete) to request chunks of FAM.  Finally, the file can be memory-mapped via mmap(2) and deliver load-store operations directly to FAM without the OS or another API.  This is the promise of Memory-Driven Computing.  A daemon on each node communicates with a single server process to realize a global, distributed file system across nodes of The Machine.
 
-Fabric-Attached Memory Emulation (FAME) is an environment that can be used to explore this new paradigm of The Machine.  FAME employs QEMU virtual machines (VMs) to be the "nodes" in The Machine.  A feature of QEMU, Inter-Virtual Machine Shared Memory (IVSHMEM), is configured across all the node VMs so they see a shared, global memory space.  This emulation is a "good-enough" approximation of real hardware to allow large amounts of software development on the nodes.  [Read more about emulation here](https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-and-Simulation) and [QEMU/FAME here](https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).
+Fabric-Attached Memory Emulation (FAME) is an environment that can be used to explore this new paradigm of The Machine.  FAME employs QEMU virtual machines (VMs) to be the "nodes" in The Machine.  A feature of QEMU, Inter-Virtual Machine Shared Memory (IVSHMEM), is configured across all the node VMs so they see a shared, global memory space.  This emulation is a "good-enough" approximation of real hardware to accomodate large amounts of software development on the nodes.  [Read more about emulation here](https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-and-Simulation) and [QEMU/FAME here](https://github.com/FabricAttachedMemory/Emulation/wiki/Emulation-via-Virtual-Machines).
 
-## Configuration for emulation_configure.bash
+## Pre-configuration for the script
 
-Prior experience with the QEMU/KVM suite and virsh command is useful but not absolutely required.
+The primary script in this repo is ``emulation_configure.bash``.   It will
+create the necessary virtual network, VM bootable images, and control scripts.
+Of course there's a little [work that needs to be done first](README2nd/Preconfiguration.md).
 
-Before you can run the script some conditions need to be met.  Some of the are packages, some are environment variables, and some involve file locations.
+## Running the script
 
-### OS and extra packages
-
-emulation_configure.bash must be run in a Debian environment.  Debian Stretch (9.2 and later) have been tested recently, as has Ubuntu 16 and 17.
-
-Install packages for the commands __vmdebootstrap, sudo, and virsh__.  The actual package names may differ depending on your exact distro.
-
-### Artifact directory and the FAME IVSHMEM backing file
-
-The node emulated FAM is backed on the QEMU host by a file in the host file system.  Thus the emulated FAM is persistent (with respect to the lifetime of the IVSHMEM backing file).  This file must be created before running the configuration script.  Additionally, the script will generate files (node images, logs, etc).   All node VMs will share that one file so the global shared address space effect is realized.
-
-First choose a location for all these files; a reasonable place is $HOME/FAME.  Export the following environment variable then create the directory:
-
-```
-    $ export FAME_DIR=$HOME/FAME
-    $ mkdir $FAME_DIR
-```
-
-The backing store file must exist before running the script as it is scanned for size during VM configuration.  The file must be "big enough" to hold the expected data from all nodes (VMs).  The size must be between 1G and 256G and must be a power of 2.  There can be a little trial and error to get it right for your usage, but changing it and re-running the script is trivial.  The file is referenced by the $FAME_FAM variable.  A good location is in $FAME_DIR (but that's not a requirement).
-There are a few other attributes that should be set now:
-
-```
-    $ export FAME_FAM=$FAME_DIR/FAM   # So the file is at $HOME/FAME/FAM
-    $ fallocate -l 16G $FAME_FAM
-    $ chgrp libvirt-qemu $FAME_FAM
-    $ chmod 660 $FAME_FAM
-```
-
-### Environment variables
-
-Two have already been discussed (FAME_DIR and FAME_FAM), here are the rest.  
-
-First, http_proxy and https_proxy will be take from existing variables and used as defaults.
-
-Second, understand that node VM images are build from two repos:
-
-1. A "stock" Debian repo that feeds vmdebootstrap for the bulk of the VM image
-1. An "L4FAME" (Linux for FAME) repo that has about a dozen packages needed by each node.
-
-Environment variables specify the repo locations as well as other QEMU operating values.  They are listed here in alphabetical order:
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| FAME_DIR | All resulting artifacts are located here, including "env.sh" that lists the FAME_XXX values.  This is a good place to allocate $FAME_FAM. | Must be explicitly set |
-| FAME_FAM | The "backing store" for the Global NVM seen by the nodes; it's the file used by QEMU IVSHMEM. | Must be explicitly set |
-| FAME_KERNEL | The kernel package pulled from the $FAME_L4FAME repo. | linux-image-4.14.0 |
-| FAME_L4FAME | The auxiliary L4FAME repo.  The default global copy is maintained by HPE but there are ways to build your own. | http://downloads.linux.hpe.com/repo/l4fame/Debian |
-| FAME_MIRROR | The primary Debian repo used by vmdebootstrap. | http://ftp.us.debian.org/debian |
-| FAME_PROXY | Any proxy needed to reach $FAME_MIRROR.  It can be different from $http_proxy if you have a weird setup. | $http_proxy |
-| FAME_USER | The normal (non-root) user on each node | l4mdc |
-| FAME_VCPUS | The number of virtual CPUs for each VM | 2 |
-| FAME_VDRAM | Virtual DRAM allocated for each VM in KiB | 768432 |
-| FAME_VFS_GBYTES | The maximum size of the golden image and each node VM image | 6 |
-| FAME_VERBOSE | Normally the script only emits cursory summary messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $FAME_DIR/fabric_emulation.log | unset |
-
-If you run the script with no options it will print the current variable values:
-
-```
-$ ./emulation_configure.bash
-http_proxy=
-https_proxy=
-FAME_DIR=
-FAME_FAM=
-FAME_KERNEL=linux-image-4.14.0-fame
-FAME_L4FAME=http://downloads.linux.hpe.com/repo/l4fame/Debian
-FAME_MIRROR=http://ftp.us.debian.org/debian
-FAME_PROXY=
-FAME_USER=l4mdc
-FAME_VCPUS=2
-FAME_VDRAM=786432
-FAME_VERBOSE=
-FAME_VFS_GBYTES=6
-```
-
-Variables can be set and exported for use prior to running the script.  When it is run with an argument to create VMs, the values will be stored in $FAME_DIR/env.sh.  This file can be sourced to recreate the desired runtime.
-
-After setting variables, run the script; it takes the desired number of VMs as its sole argument.  
+After setting the appropriate environment variables, run the script; it takes
+the desired number of VMs as its sole argument.  
 
     $ ./emulation_configure.bash n
     
-Early on you'll be prompted early for your password for "sudo", as several of the commands in the script need root privilege.  If you want to run the script via sudo, you can do that, if you preserve the environment variables:
+Early on you'll be prompted for your password for "sudo" as several of
+the commands in the script need root privilege.  If you want to run the 
+script via sudo, you can do that, if you preserve the environment variables:
 
     $ sudo -E ./emulation_configure.bash n
 
-## Behind the scenes
+### Behind the scenes
+
+Some of the artifact names are based off the $FAME_HOSTBASE variable.  For
+example, if you use the default "node", all the files in $FAME_DIR will
+start with "node_" and the virtual network will be named "node_emul".  In
+the following discussion, BASE stands for the current value.
 
 emulation_configure.bash performs the following actions:
 
 1. Validates the host environment, ensuring commands are installed, verifying file space and internal consistency.
-1. Creates a libvirt virtual bridged network called "node_emul" which
-    1. Provides DHCP services via dnsmasq, and DNS resolution for names like "node02"
-    1. Links all emulated VM "nodes" together on an intranet
-    1. Uses NAT to connect the intranet to the host system's external network.
-1. Uses vmdebootstrap(1m) to create a new disk image (file) that serves as the "golden image" for subsequent use.  This is the step that pulls from $FAME_MIRROR possibly using $FAME_PROXY. This template file is a raw disk QEMU image.  The default size of 6G ($FAME_VFS_GBYTES) will leave about 4.5 G of empty space, more than enough for a non-graphical Linux development system.  If your host system is limited on disk space, try reducing $FAME_VFS_GBYTES and recreating the images.
-1. Augments the *apt* environment on the template image to also use $FAME_L4FAME, then installs the FAME packages (such as the LFS daemon).
-1. Copy the template image for each VM and customize it (hostname, /etc/hosts, etc etc etc).  The raw image is then converted to a qcow2 (copy-on-write) which shrinks its size down to 800 megabytes.  That will grow with use, limited by $FAME_VFS_GBYTES.
+1. Creates a libvirt virtual bridged network called "BASE_emul" which
+    * Links all emulated VM "nodes" together on an intranet
+    * Provides DHCP services via dnsmasq, and DNS resolution for names like "BASE02"
+    * Uses NAT to connect the intranet to the host system's external network.
+1. Uses vmdebootstrap(1m) to create a new disk image (file) that serves as
+the "golden image" for subsequent use.  This is the step that pulls from
+$FAME_MIRROR possibly using $FAME_PROXY. This template file is a raw disk
+QEMU image name BASE_image.raw.  The default size of 6G ($FAME_VFS_GBYTES)
+will leave about 4.5 G of empty space, more than enough for a non-graphical
+Linux development system.  If your host system is limited on disk space,
+try reducing $FAME_VFS_GBYTES and recreating the images.
+1. Augments the *apt* environment on the golden image to also use $FAME_L4FAME, then installs the FAME packages (such as the LFS daemon).
+1. Copy the template image for each VM and customize it (hostname, /etc/hosts,
+etc etc etc).  The raw image is then converted to a qcow2 (copy-on-write) which shrinks its size down to 800 megabytes.  That will grow with use, limited by $FAME_VFS_GBYTES.  Each node gets its own image, BASE01.qcow2, BASE02.qcow2, etc.
 1. Emits libvirt XML node definition files and and a script to load/start/stop/unload them from libvirt/virt-manager.  The XML files contain stanzas necessary to create the IVSHMEM connectivity to $FAME_FAM.
 
-## Artifacts
+### Artifacts
 
 The following files will be created in $FAME_DIR after a successful run.
 
 | Artifact | Description |
 |----------|-------------|
-| env.sh | A shell script snippet containing the FAME_XXX values from the last run of emulation_configure.bash. |
-| nodeXX.qcow2 | The disk image file for VM "node" XX |
-| nodeXX.xml | The "domain" defintion file for "node" XX, loaded into virt-manager via "virsh define nodeXX.xml" |
-| emulation_configure.log | Trace file of all steps by emulation_configure.bash |
-| node_template.img | Undifferentiated file-system golden image from vmdebootstrap. |
-| node_virsh.sh | Shell script to to "define", "start", "stop", "destroy", and "undefine" all VM "nodes" |
+| BASEXX.qcow2 | The disk image file for VM "node" XX |
+| BASEXX.xml | The "domain" defintion file for "node" XX, loaded into virt-manager via "virsh define nodeXX.xml" |
+| BASE_dpkg.list | All Debian packages included in each node. |
+| BASE_env.sh | A shell script snippet containing the FAME_XXX values from the last run of emulation_configure.bash. |
+| BASE_fame.in | The Librarian configuration file (read below) |
+| BASE_log | Trace file of all steps by emulation_configure.bash |
+| BASE_log.vm | Output from vmdebootstrap |
+| BASE_network.xml | libvirt definition file for the assigned virtual network |
+| BASE_template.img | Undifferentiated file-system golden image from vmdebootstrap. |
+| BASE_virsh.sh | Shell script to to "define", "start", "stop", "destroy", and "undefine" all VM "nodes" |
 
 ## The Librarian File System (LFS)
 
-The nodes (VMs) participate in a distributed file system.  That file system is coordinated by a single master daemon known as the Librarian which runs on a host other than a node.  In the FAME setup, the Librarian can run on the QEMU host.  Before starting the nodes, the Librarian must be [configured as discussed in this document.](Librarian.md)  Values used in this configuration step have a direct impact on the size of $FAME_FAM.
+The nodes (VMs) participate in a distributed file system.  That file system
+is coordinated by a single master daemon known as the Librarian which runs
+on a host (other than a VM).  In the FAME setup, the Librarian can run on the
+QEMU host.  Before starting the nodes, the Librarian must be [configured as
+discussed in this document.](README2nd/Librarian.md).
 
 ## Starting the nodes
 
@@ -153,15 +103,15 @@ this is highly non-deterministic :-)   More will be revealed...
 
 For now, 
 
-* node01 == 192.168.42.1
-* node02 == 192.168.42.2
+* BASE01 == 3OCTETS.1
+* BASE02 == 3OCTETS.2
 * etc.
 
 You can ssh to the node as the normal $FAME_USER user.  If you set your $HOME/.ssh/config file correctly using the id_rsa.nophrase private key the ssh occurs without further typing.
 
 ## Running FAME on non-Debian Linux host systems
 
-[Read this document](Docker.md) to execute emulation_configure.bash in a Docker container.  The resulting VMs and other files will still be left in $FAME_DIR as expected, but now you can run on a distro like RedHat or SLES.
+[Read this document](README2nd/Docker.md) to execute emulation_configure.bash in a Docker container.  The resulting VMs and other files will still be left in $FAME_DIR as expected, but now you can run them on a distro like RedHat or SLES.
 
 ## Running FAME on Windows
 
@@ -171,4 +121,4 @@ Assuming you have an HPE-issued system, you can
 1. Create a Debian Stretch VM as the "FAME host"
 1. git clone the Emulation repo and follow the above instruction
 
-This runs your node VMs inside a nested VMWare VM.  [More details are given here.](Windows.md)
+This runs your node VMs inside a nested VMWare VM.  [More details are given here](README2nd/Windows.md).
