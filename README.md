@@ -14,7 +14,7 @@ Fabric-Attached Memory Emulation (FAME) is an environment that can be used to ex
 
 The primary script in this repo is ``emulation_configure.bash``.   It will
 create the necessary virtual network, VM bootable images, and control scripts.
-Of course there's a little [work that needs to be done first](README2nd/Preconfiguration.md).
+Of course there's a little [work that needs to be done first](README2nd/Preconfigure.md).
 
 ## Running the script
 
