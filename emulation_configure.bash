@@ -59,7 +59,7 @@ export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.14.0-fame"}
 
 # Set to non-null (yes|true|1|whatever) to emit FAME-Z configuration.
 # It gets reset early to a good location for the AF_UNIX socket.
-export FAME_FAMEZ=${FAME_FAMEZ:-}
+export FAME_IVSHMSG=${FAME_IVSHMSG:-}
 
 ###########################################################################
 # Hardcoded to match content in external config files.  If any of these
@@ -331,8 +331,8 @@ function verify_environment() {
     # [ "${ONHOST[FAME_FAM]}" ] || die "FAME_FAM variable must be specified"
 
     if [ ! "$FAME_FAM" ]; then
-    	[ "$FAME_FAMEZ" ] || \
-    		die 'At least one of FAME_FAM / FAME_FAMEZ must be set'
+    	[ "$FAME_IVSHMSG" ] || \
+    		die 'At least one of FAME_FAM / FAME_IVSHMSG must be set'
     else
 	[ -f "$FAME_FAM" ] || die "$FAME_FAM does not exist"
 	[ -w "$FAME_FAM" ] || die "$FAME_FAM is not writeable"
@@ -1048,7 +1048,7 @@ function fixup_apparmor() {
     [ $? -ne 0 ] && return 0	# Either not installed or not enabled
 
     # Each one is optional, they probably aren't both empty...
-    [ ! "$FAME_FAM" -a ! "$FAME_FAMEZ" ] && return 0
+    [ ! "$FAME_FAM" -a ! "$FAME_IVSHMSG" ] && return 0
 
     sep "Fixing up apparmor"
 
@@ -1056,14 +1056,14 @@ function fixup_apparmor() {
     # Yes, FAME_FAM could be there too but it's highly unlikely.
 
     BASEARMOR=/etc/apparmor.d/abstractions/libvirt-qemu
-    FMT="apparmor denies use of %s by libvirt (FAME_FAMEZ=$FAME_FAMEZ)"
-    if [ "$FAME_FAMEZ" ]; then
+    FMT="apparmor denies use of %s by libvirt (FAME_IVSHMSG=$FAME_IVSHMSG)"
+    if [ "$FAME_IVSHMSG" ]; then
 	# Superfluous now but I might not be done with it...
 	egrep 'deny\s+/tmp/' $BASEARMOR >/dev/null 2>&1
-	[ $? -eq 0 -a "${FAME_FAMEZ:0:5}" = /tmp/ ] && \
+	[ $? -eq 0 -a "${FAME_IVSHMSG:0:5}" = /tmp/ ] && \
     	    die `printf "$FMT" /tmp`
 	egrep 'deny\s+/var/tmp/' $BASEARMOR >/dev/null 2>&1
-	[ $? -eq 0 -a "${FAME_FAMEZ:0:5}" = /var/ ] && \
+	[ $? -eq 0 -a "${FAME_IVSHMSG:0:5}" = /var/ ] && \
     	    die `printf "$FMT" /var/tmp`
     fi
 
@@ -1071,7 +1071,7 @@ function fixup_apparmor() {
     FAM_STANZA=
     FAMEZ_STANZA=
     [ "$FAME_FAM" ] && FAM_STANZA="\"$FAME_FAM\" rw,"
-    [ "$FAME_FAMEZ" ] && FAMEZ_STANZA="\"$FAME_FAMEZ\" rw,"
+    [ "$FAME_IVSHMSG" ] && FAMEZ_STANZA="\"$FAME_IVSHMSG\" rw,"
 
     TEMPLATE=/etc/apparmor.d/libvirt/TEMPLATE.qemu
     SAVED=$TEMPLATE.original
@@ -1123,11 +1123,11 @@ EOIVSHMEM
     fi
 
     FAMEZ_IVSHMSG=
-    if [ "$FAME_FAMEZ" ]; then		# Yes, true, 1, whatever
-	FAME_FAMEZ="$FAME_DIR/${FAME_HOSTBASE}_socket"
+    if [ "$FAME_IVSHMSG" ]; then		# Yes, true, 1, whatever
+	FAME_IVSHMSG="$FAME_DIR/${FAME_HOSTBASE}_socket"
     	read -r -d '' FAMEZ_IVSHMSG << EOIVSHMSG
     <qemu:arg value='-chardev'/>
-    <qemu:arg value='socket,id=FAMEZ,path=$FAME_FAMEZ'/>
+    <qemu:arg value='socket,id=FAMEZ,path=$FAME_IVSHMSG'/>
     <qemu:arg value='-device'/>
     <qemu:arg value='ivshmem-doorbell,chardev=FAMEZ,vectors=16'/>
 EOIVSHMSG
