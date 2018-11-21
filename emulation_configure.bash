@@ -1191,7 +1191,7 @@ EOIVSHMSG
 
 if [ $# -ne 1 -o "${1:0:1}" = '-' ]; then	# Show current settings
 	echo_environment
-	inHost && log "\nusage: `basename $0` [ -h|? ] [ VMcount ]"
+	inHost && echo -e "\nusage: `basename $0` [ -h|? ] [ VMcount ]"
 	exit 0
 fi
 typeset -ir NODES=$1	# will evaluate to zero if non-integer
