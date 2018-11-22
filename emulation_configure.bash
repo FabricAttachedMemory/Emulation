@@ -1207,8 +1207,6 @@ trap "rm -f debootstrap.log; exit 0" TERM QUIT INT HUP EXIT # always empty
 
 verify_environment
 
-fixup_apparmor
-
 libvirt_bridge
 
 expose_proxy
@@ -1220,6 +1218,8 @@ clone_VMs
 emit_LFS_INI
 
 emit_libvirt_XML
+
+fixup_apparmor
 
 # After all transformatons are finished, save it for next time.
 echo_environment export > $FAME_DIR/${FAME_HOSTBASE}_env.sh
