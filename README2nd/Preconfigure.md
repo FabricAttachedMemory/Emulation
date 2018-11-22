@@ -4,26 +4,35 @@ Prior experience with the QEMU/KVM suite and virsh command is useful but not
 absolutely required.  Before you can run the script some conditions need to
 satisfied:
 
-* Operating system revision and package
+* Operating system revision and packages
 * Selection of an output "artifact" directory
 * Environment variables that control the script
 
 ### OS and extra packages
 
-emulation_configure.bash must be run in a Debian environment.  Debian Stretch (9.2 and later) have been tested recently, as has Ubuntu 16 and 17.
+emulation_configure.bash must be run in a Debian environment.  Debian
+Stretch (9.2 and later) have been tested recently, as has Ubuntu 16, 17,
+and 18.  Insure your system has the following commands:
 
-Install packages for the commands __vmdebootstrap, sudo, and virsh__.  The actual package names may differ depending on your exact distro.
+* brctl
+* qemu-img
+* qemu-system-x86_64
+* sudo
+* virsh  
+* vmdebootstrap
+
+The actual package names may differ depending on your exact distro.
 
 ### Artifact directory and the FAME IVSHMEM backing file
 
-The node emulated FAM is backed on the QEMU host by a file in the host file
-system.  Thus the emulated FAM is persistent to VM reboots.  This file must
-be created before running the configuration script.  All node VMs will share 
-that one file so the global shared address space effect is realized.
+Emulated FAM for all the nodes is backed on the QEMU host by a file in the
+host file system.  Thus the emulated FAM is persistent to VM reboots.  This
+file must be created before running the configuration script.  All node VMs
+will share that one file so the global shared address space effect is realized.
 
 Additionally, the script will generate files (node images, logs, etc).   
 While it's possible to select different directory paths for different 
-artifacts, you are encouraged to let everything exists under one directory.
+artifacts, you are encouraged to let everything exist under one directory.
 
 First choose a location for all these files; a reasonable place is $HOME/FAME.  Export the following environment variable then create the directory:
 
@@ -33,11 +42,11 @@ First choose a location for all these files; a reasonable place is $HOME/FAME.  
 ```
 
 The backing store file must exist before running the script as it is scanned
-for size.  The file must be "big enough" to hold the expected FAM data from all
-nodes (VMs).  The size must be between 1G and 256G and must be a power of 2.
-There can be a little trial and error to get it right for your usage,
+for size.  The file must be "big enough" to hold the expected FAM data from
+all nodes (VMs).  The size must be between 1G and 256G and must be a power
+of 2.  There can be a little trial and error to get it right for your usage,
 but changing it and re-running the script is trivial.  The file is referenced
-by the $FAME_FAM variable.  Assuming it's going to live in $FAME_DIR:
+by the **$FAME_FAM** variable.  Assuming it's going to live in **$FAME_DIR**:
 
 ```
     $ export FAME_FAM=$FAME_DIR/FAM   # So the file is at $HOME/FAME/FAM
@@ -48,16 +57,18 @@ by the $FAME_FAM variable.  Assuming it's going to live in $FAME_DIR:
 
 ### Environment variables
 
-Two have already been discussed (FAME_DIR and FAME_FAM), here are the rest.  
+Two have already been discussed (**FAME_DIR** and **FAME_FAM)**,
+here are the rest.  First, **http_proxy** and **https_proxy** are observed
+if set.
 
-First, http_proxy and https_proxy will be take from existing variables and used as defaults.
-
-Second, understand that node VM images are build from two repos:
+Second, understand that VM images are build from two repos:
 
 1. A "stock" Debian repo that feeds vmdebootstrap for the bulk of the VM image
 1. An "L4FAME" (Linux for FAME) repo that has about a dozen packages needed by each node.
 
-Environment variables specify the repo locations as well as other QEMU operating values.  They are listed here in alphabetical order:
+Environment variables specify the repo locations as well as other QEMU 
+operating values.  They are listed here in alphabetical order.
+Variables can be set and must be exported for use prior to running the script.
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
@@ -73,9 +84,9 @@ Environment variables specify the repo locations as well as other QEMU operating
 | FAME_VCPUS | The number of virtual CPUs for each VM | 2 |
 | FAME_VDRAM | Virtual DRAM allocated for each VM in KiB | 768432 |
 | FAME_VFS_GBYTES | The maximum size of the golden image and each node VM image | 6 |
-| FAME_VERBOSE | Normally the script only emits cursory summary messages.  If VERBOSE set to any value (like "yes"), step-by-step operations are sent to stdout and the file $FAME_DIR/fabric_emulation.log | unset |
+| FAME_VERBOSE | Normally the script only emits cursory summary messages.  If set to any value (like "yes"), step-by-step operations are sent to stdout as well as the log file(s) | unset |
 
-If you run the script with no options it will print the current variable values:
+Run the script with no options to print the current variable values:
 
 ```
 $ ./emulation_configure.bash
@@ -96,8 +107,11 @@ FAME_VERBOSE=
 FAME_VFS_GBYTES=6
 ```
 
-Variables can be set and exported for use prior to running the script.  
-When it is run with an argument to create VMs, the values will be stored in
-$FAME_DIR/BASE_env.sh.  This file can be sourced to recreate the desired
-runtime environment at a later time.
+When the script is run with a numeric argument to create VMs, the values will
+be stored in **$FAME_DIR/${FAME_HOSTBASE}**_env.sh.  This file can be sourced
+to recreate the desired environment at a later time.
+
+Two log files are created after a production run:
+* **$FAME_DIR/${FAME_HOSTBASE}**_log (general operations)
+* **$FAME_DIR/${FAME_HOSTBASE}**_log.vmd (output from the embedded vmdebootstrap)
 
