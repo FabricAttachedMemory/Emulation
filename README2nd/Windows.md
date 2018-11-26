@@ -1,7 +1,12 @@
-Assuming you have an HPE-installed Windows system (laptop or desktop) you can run FAME on your box.
+If you have an recent version of Windows as the base OS on your laptopi
+or desktop you can still run FAME on your box.  Pick one of the major
+hypervisors (such as VMware or VIrtualBox).  This also holds true for MacOS.
 
-1. Create a Debian VM under VMware for Windows
+1. Create a Debian VM under the hypervisor.
 1. Install and build [FAME as normal under Debian](https://github.com/FabricAttachedMemory/Emulation)
+
+The following instructions for VMware were submitted by another developer,
+your mileage may vary.
 
 ## System requirements (above the base Windows installation)
 Resources needed for the "host" Debian VM plus the nested VMs (one per "node")
@@ -9,10 +14,12 @@ Resources needed for the "host" Debian VM plus the nested VMs (one per "node")
 2. RAM: 2 GB for host VM plus 2 GB per "node" VM
 3. Free disk: 4 GB for host VM plus 6 GB scratch space plus 2 GB per "node" VM (default value of $FAME_VFS_BYTES=6)
 
-## Prepare HPE Windows System
-### Install software from myIT Software Center
+## Prepare Windows System
+
+### Install software
 1. VMware Workstation
-1. Reflection w/SP5
+1. Reflection w/SP5 (as an optional method to connect to the VMs from Windows)
+
 ### Obtain Debian 9.x (Stretch) network install ISO
 1. https://www.debian.org/CD/netinst/ and choose the ["amd64" via http option](https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-9.3.0-amd64-netinst.iso)
 
