@@ -989,7 +989,7 @@ function emit_LFS_INI() {
     let BOOK_SIZE_BYTES=8*1048576
     let TOTAL_BOOKS=$FAME_SIZE_BYTES/$BOOK_SIZE_BYTES
     while [ $TOTAL_BOOKS -gt 10000 ]; do
-    	let BOOK_SIZE_BYTES *= 2
+    	let BOOK_SIZE_BYTES*=2
     	let TOTAL_BOOKS=$FAME_SIZE_BYTES/$BOOK_SIZE_BYTES
     done
 
