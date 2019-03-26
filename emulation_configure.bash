@@ -55,7 +55,7 @@ export FAME_OCTETS123=${FAME_OCTETS123:-192.168.42}
 # A generic kernel metapackage is not created.  As we don't plan to update
 # the kernel much, it's reasonably safe to hardcode this regex.  The
 # only other option is to scan the repo, ugh.
-export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.14.0-fame"}
+export FAME_KERNEL=${FAME_KERNEL:-"linux-image-4.14.0-l4fame"}
 
 # Set to non-null (yes|true|1|whatever) to emit FAME-Z configuration.
 # It gets reset early to a good location for the AF_UNIX socket.
