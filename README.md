@@ -117,12 +117,25 @@ You can ssh to the node as the normal **$FAME_USER**.  If you edit your
 $HOME/.ssh/config file correctly using the id_rsa.nophrase private key the 
 ssh occurs without confirmation.
 
-## Running FAME on non-Debian Linux host systems
+---
+
+## Running emulation_configure.sh on non-Debian Linux hosts
 
 [This document explains](README2nd/Docker.md) how to execute
-emulation_configure.bash in a Docker container.  The resulting VMs and other
-files will still be left in **$FAME_DIR** as expected, but now you can run
-them on a distro like RedHat or SLES.
+emulation_configure.bash in a Docker container on your preferred host
+system (such as RedHat or SLES).  The resulting (Debian) VMs
+and other files will still be left in **$FAME_DIR** as expected.
+
+For the most part you need to configure your host as outlined in steps 1-5
+above, making distro-appropriate changes.
+
+## Manual setup for SuSE LEAP 15 VMs
+
+<code>emulation_configure.bash</code> creates VMs running Debian.  If you'd
+prefer a set of VMs running SuSE LEAP 15, [these instructions should guide
+you through it](README2nd/SuSELEAP15.md).
+
+---
 
 ## Running FAME on non-Linux host systems: Nested VMs
 
