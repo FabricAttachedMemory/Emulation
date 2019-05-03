@@ -60,7 +60,7 @@ can be adjust to suit your taste.
    zypper refresh</code><br>
    to verify networking and any proxies.
 1. Add a few more packages for the next steps:<br><code>
-   zypper install spice-vdagent pciutils 
+   zypper install spice-vdagent pciutils</code>
 1. Shutdown the VM, insure it's truly stopped at virt-manager or "virsh list"
 
 ---
