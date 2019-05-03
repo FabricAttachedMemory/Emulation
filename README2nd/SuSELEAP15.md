@@ -9,7 +9,7 @@ there are now SLES packages for that on the [HPE Software Delivery Repo](http://
 
 ### Configuring your (SLES) host
 
-If running SLES15 you can add the HPE SDR repo:
+If running SLES15 you can add the HPE SDR repo to your host set:
 
 <code> # zypper zypper addrepo --no-gpgcheck --refresh https://downloads.linux.hpe.com/SDR/repo/l4fame/SLES/ FAME</code>
 
@@ -95,10 +95,12 @@ Some numbers may change but the final line should show size=512M.
 
 ### Adding Librarian kernel and packages
 
-Assuming you've added the FAME repo as outlined above,
+Still logged in to the leap01 VM, 
 
+1. zypper zypper addrepo --no-gpgcheck --refresh https://downloads.linux.hpe.com/SDR/repo/l4fame/SLES/ FAME
 1. zypper install --from FAME kernel
-1. Reboot.  Run "modinfo tmfs" and insure it doesn't say "tmfs not found"
+1. Reboot
+1. modprobe tmfs
 1. mkdir /lfs
 1. zypper install tm-lfs tm-libfuse
 1. ldconfig /usr/lib/x86_64-linux-gnu
