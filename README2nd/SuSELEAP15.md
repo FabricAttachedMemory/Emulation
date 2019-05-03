@@ -81,7 +81,7 @@ before the closing &lt;/domain&gt; insert the following six lines:<br><code>
     &lt;qemu:arg value='memory-backend-file,mem-path=/home/you/FAM,size=512M,id=FAM,share=on'/><br>
     &lt;qemu:arg value='-device'/><br>
     &lt;qemu:arg value='ivshmem-plain,memdev=FAM'/><br>
-  &lt;/qemu:commandline><code>
+  &lt;/qemu:commandline></code>
 1. Boot the VM and login as root.  Run lspci -v and look for lines like this:<pre>00:09.0 RAM memory: Red Hat, Inc. Inter-VM shared memory (rev 01)
 	Subsystem: Red Hat, Inc. QEMU Virtual Machine
 	Physical Slot: 9
