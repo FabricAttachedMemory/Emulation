@@ -367,7 +367,7 @@ function verify_environment() {
 
     # verified working QEMU versions, checked only to "three digits"
     if inHost; then
-    	VERIFIED_QEMU_VERSIONS="2.6.0 2.8.0 2.8.1 2.11.1"
+    	VERIFIED_QEMU_VERSIONS="2.6.0 2.8.0 2.8.1 2.11.1 3.1.0"
     	set -- `qemu-system-x86_64 -version`
     	# Use regex to check current version against VERIFIED_QEMU_VERSIONS.
     	# See man page for bash, 3.2.4.2 Conditional Constructs.  No quotes.
